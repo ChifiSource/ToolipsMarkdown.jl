@@ -52,4 +52,5 @@ function tmd(name::String = "tmd", s::String = "")
     mddiv
 end
 
+export tmd, tmd_str
 end # module
