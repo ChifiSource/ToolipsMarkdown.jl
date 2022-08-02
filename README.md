@@ -2,8 +2,8 @@
 
 Parse markdown strings into Toolips Components.
 - [Documentation]()
-- [Toolips]()
-- [Extension Gallery]()
+- [Toolips](https://github.com/ChifiSource/Toolips.jl)
+- [Extension Gallery](https://toolips.app/?page=extensions&selected=markdown)
 ```julia
 using Toolips
 using ToolipsMarkdown
