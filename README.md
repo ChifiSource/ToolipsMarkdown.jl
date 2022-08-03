@@ -1,6 +1,9 @@
 <img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipsmarkdown.png"></img>
 
 Parse markdown strings into Toolips Components.
+- [Documentation]()
+- [Toolips](https://github.com/ChifiSource/Toolips.jl)
+- [Extension Gallery](https://toolips.app/?page=extensions&selected=markdown)
 ```julia
 using Toolips
 using ToolipsMarkdown
