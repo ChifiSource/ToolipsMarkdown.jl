@@ -71,7 +71,7 @@ function julia_style()
     hljl_k::Style = Style("span.hljl-k", "color" => "red", "font-weight" => "bold")
     styles::Component{:sheet} = Component("tmds", "sheet")
     push!(styles, hljl_k, hljl_nf, hljl_oB, hljl_n, hljl_cs)
-    styles::Style
+    styles::Component{:sheet}
 end
 
 export tmd, @tmd_str
