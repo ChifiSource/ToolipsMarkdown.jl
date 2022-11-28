@@ -12,8 +12,8 @@ a Toolips.divier
 """
 module ToolipsMarkdown
 using Toolips
+import Toolips: Modifier
 using Markdown
-using Highlights
 """
 **Toolips Markdown**
 ### @tmd_str -> ::Component
@@ -43,7 +43,8 @@ route("/") do c::Connection
 end
 ```
 """
-function tmd(name::String = " ", s::String = ""; lexer::Any = Lexers.JuliaLexer)
+function tmd(name::String = " ", s::String = "",
+    code_mods::Vector{String, TextModifier})
     mddiv::Component{:div} = divider(name)
     md = Markdown.parse(s)
     htm::String = html(md)
@@ -63,15 +64,22 @@ function tmd(name::String = " ", s::String = ""; lexer::Any = Lexers.JuliaLexer)
     mddiv
 end
 
-function julia_style()
-    hljl_nf::Style = Style("span.hljl-nf", "color" => "blue")
-    hljl_oB::Style = Style("span.hljl-oB", "color" => "purple", "font-weight" => "bold")
-    hljl_n::Style = Style("span.hljl-ts", "color" => "orange")
-    hljl_cs::Style = Style("span.hljl-cs", "color" => "gray")
-    hljl_k::Style = Style("span.hljl-k", "color" => "red", "font-weight" => "bold")
-    styles::Component{:sheet} = Component("tmds", "sheet")
-    push!(styles, hljl_k, hljl_nf, hljl_oB, hljl_n, hljl_cs)
-    styles::Component{:sheet}
+mutable struct TextModifier <: Modifier
+    raw::String
+    marks::Dict{Symbol, Vector{UnitRange{Int64}}}
+    styles::Dict{Symbol, Vector{Pair{String, String}}}
+    function TextModifier(raw::String)
+        marks = Dict{Symbol, UnitRange{Int64}}()
+        styles = Dict{Symbol, Vector{Pair{String, String}}}()
+        new(raw, marks, styles)
+    end
+end
+
+mutable struct CodeAction{T <: Any} end
+
+function tmd_do!(f::Function, ch::CodeAction{:julia}, t::String)
+    tm = TextModifier(t)
+    func_marks = findall("function", t)
 end
 
 export tmd, @tmd_str
