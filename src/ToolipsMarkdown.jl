@@ -68,17 +68,29 @@ end
 mutable struct TextModifier <: Modifier
     raw::String
     marks::Dict{Symbol, Vector{UnitRange{Int64}}}
-    styles::Dict{Symbol, Vector{Pair{String, String}}}
+    styles::Dict{Symbol, Tuple{Pair{String, String}}}
     function TextModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
-        styles = Dict{Symbol, Vector{Pair{String, String}}}()
+        styles = Dict{Symbol, Tuple{Pair{String, String}}}()
         new(raw, marks, styles)
     end
 end
 
-function style!(tm::TextModfier, marks::Symbol, sty::Vector{String, String} ...)
-
+function style!(tm::TextModfier, marks::Symbol, sty::Pair{String, String} ...)
+    tm.styles[marks] = sty
 end
+
+function render(tm::TextModfiier)
+    spoof = Toolips.SpoofConnection()
+    for mark_type in tm.marks
+        marks = tm.marks[mark_type]
+        style = ("color" => "lightgray")
+        if mark_type in keys(tm.styles)
+            style = tm.styles[mark_type]
+        end
+    end
+end
+
 
 highlight_julia!(tm::TextModfiier) = begin
     style!(tm, :func, "color" => "red")
