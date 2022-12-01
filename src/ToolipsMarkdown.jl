@@ -13,6 +13,7 @@ a Toolips.divier
 module ToolipsMarkdown
 using Toolips
 import Toolips: Modifier
+import Toolips: style!
 using Markdown
 """
 **Toolips Markdown**
@@ -44,7 +45,7 @@ end
 ```
 """
 function tmd(name::String = " ", s::String = "",
-    code_mods::Vector{String, TextModifier})
+    code_mods::Dict{String, Function} = ["julia" => highlight_julia!])
     mddiv::Component{:div} = divider(name)
     md = Markdown.parse(s)
     htm::String = html(md)
@@ -75,11 +76,57 @@ mutable struct TextModifier <: Modifier
     end
 end
 
-mutable struct CodeAction{T <: Any} end
+function style!(tm::TextModfier, marks::Symbol, sty::Vector{String, String} ...)
+
+end
+
+highlight_julia!(tm::TextModfiier) = begin
+    style!(tm, :func, "color" => "red")
+end
+
+mark_julia!(tm::TextModifier) = begin
+    tm = TextModifier(t)
+    mark_all!(tm, "function", :func)
+    mark_all!(tm, "end", :end)
+    mark_all!(tm, "struct", :struct)
+    mark_all!(tm, "mutable", :mutable)
+    mark_all!(tm, "begin", :begin)
+    mark_all!(tm, "module", :module)
+    mark_after!(tm, "::", :type)
+    mark_between!(tm, "\"", :string)
+    mark_between!(tm, "\"\"\"", :string)
+    mark_between!(tm, "'", :char)
+    mark_before!(tm, "(", :method)
+end
 
 function tmd_do!(f::Function, ch::CodeAction{:julia}, t::String)
-    tm = TextModifier(t)
+
+
+end
+
+function mark_all!(tm::TextModifier, s::String, label::Symbol)
     func_marks = findall("function", t)
+    marks
+end
+
+function mark_between!(tm::TextModifier, s::String, label::Symbol)
+
+end
+
+function mark_before!(tm::TextModifier, s::String, label::Symbol)
+
+end
+
+function mark_after!(tm::TextModifier, s::String, label::Symbol)
+
+end
+
+function style!(tm::TextModifier, label::Symbol, stpairs::Pair{String, String} ...)
+
+end
+
+write!(c::AbstractConnection, tm::TextModifier) = begin
+
 end
 
 export tmd, @tmd_str
