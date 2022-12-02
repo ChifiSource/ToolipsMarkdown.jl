@@ -13,7 +13,7 @@ a Toolips.divier
 module ToolipsMarkdown
 using Toolips
 import Toolips: Modifier
-import Toolips: style!
+import Toolips: style!, string
 using Markdown
 """
 **Toolips Markdown**
@@ -67,63 +67,44 @@ end
 
 mutable struct TextModifier <: Modifier
     raw::String
-    marks::Dict{Symbol, Vector{UnitRange{Int64}}}
-    styles::Dict{Symbol, Tuple{Pair{String, String}}}
+    marks::Dict{UnitRange{Int64}, Symbol}
+    styles::Dict{Symbol, Vector{Pair{String, String}}}
     function TextModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
-        styles = Dict{Symbol, Tuple{Pair{String, String}}}()
+        styles = Dict{Symbol, Vector{Pair{String, String}}}()
         new(raw, marks, styles)
     end
 end
 
-function style!(tm::TextModfier, marks::Symbol, sty::Pair{String, String} ...)
-    tm.styles[marks] = sty
-end
-
-function render(tm::TextModfiier)
-    spoof = Toolips.SpoofConnection()
-    for mark_type in tm.marks
-        marks = tm.marks[mark_type]
-        style = ("color" => "lightgray")
-        if mark_type in keys(tm.styles)
-            style = tm.styles[mark_type]
-        end
-    end
-end
-
-
-highlight_julia!(tm::TextModfiier) = begin
-    style!(tm, :func, "color" => "red")
-end
-
-mark_julia!(tm::TextModifier) = begin
-    tm = TextModifier(t)
-    mark_all!(tm, "function", :func)
-    mark_all!(tm, "end", :end)
-    mark_all!(tm, "struct", :struct)
-    mark_all!(tm, "mutable", :mutable)
-    mark_all!(tm, "begin", :begin)
-    mark_all!(tm, "module", :module)
-    mark_after!(tm, "::", :type)
-    mark_between!(tm, "\"", :string)
-    mark_between!(tm, "\"\"\"", :string)
-    mark_between!(tm, "'", :char)
-    mark_before!(tm, "(", :method)
-end
-
-function tmd_do!(f::Function, ch::CodeAction{:julia}, t::String)
-
-
+function style!(tm::TextModifier, marks::Symbol, sty::Vector{Pair{String, String}})
+    push!(tm.styles, marks => sty)
 end
 
 function mark_all!(tm::TextModifier, s::String, label::Symbol)
-    func_marks = findall("function", t)
-    marks
+    [push!(tm.marks, v => label) for v in findall(s, tm.raw)]
 end
 
 function mark_between!(tm::TextModifier, s::String, label::Symbol)
-
+    firsts = findall(s, tm.raw)
+    finales = Vector{UnitRange{Int64}}()
+    uneven = length(firsts) % 2 != 0
+    for i in 1:length(firsts)
+        if uneven && i == length(firsts)
+            break
+        end
+        if i % 2 == 0
+            continue
+        end
+        push!(finales, minimum(firsts[i]) + 1:maximum(firsts[i + 1]) - 1)
+    end
+    println(finales)
+    [push!(tm.marks, v => label) for v in finales]
 end
+
+function mark_between!(tm::TextModifier, s::String, s2::String, label::Symbol)
+    firsts = findall("s")
+end
+
 
 function mark_before!(tm::TextModifier, s::String, label::Symbol)
 
@@ -133,12 +114,50 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol)
 
 end
 
-function style!(tm::TextModifier, label::Symbol, stpairs::Pair{String, String} ...)
-
+mark_julia!(tm::TextModifier) = begin
+    mark_all!(tm, "function", :func)
+    mark_all!(tm, "end", :end)
+    mark_all!(tm, "struct", :struct)
+    mark_all!(tm, "mutable", :mutable)
+    mark_all!(tm, "begin", :begin)
+    mark_all!(tm, "module", :module)
+   # mark_after!(tm, "::", :type)
+    mark_between!(tm, "\"", :string)
+    mark_between!(tm, "\"\"\"", :multistring)
+    mark_between!(tm, "'", :char)
+  #  mark_before!(tm, "(", :method)
 end
 
-write!(c::AbstractConnection, tm::TextModifier) = begin
+highlight_julia!(tm::TextModifier) = begin
+    style!(tm, :func, ["color" => "#fc038c"])
+    style!(tm, :end, ["color" => "#b81870"])
+    style!(tm, :mutable, ["color" => "#b81870"])
+    style!(tm, :struct, ["color" => "#fc038c"])
+    style!(tm, :begin, ["color" => "#fc038c"])
+    style!(tm, :module, ["color" => "#fc038c"])
+    style!(tm, :string, ["color" => "#5bf0d9"])
+    style!(tm, :multistring, ["color" => "#5bf0d9"])
+end
 
+string(tm::TextModifier) = begin
+    s = Vector{String}()
+    marks = [p[1] for p in tm.marks]
+    pos = 1
+    for mark in sort(marks)
+        style = ("color" => "gray", "font-size" => 14px)
+        if tm.marks[mark] in keys(tm.styles)
+           style = tm.styles[tm.marks[mark]]
+        end
+        comp = a("$(tm.marks[mark])", text = tm.raw[mark])
+        Toolips.style!(comp, style ...)
+        spoof = Toolips.SpoofConnection()
+        Toolips.write!(spoof, comp)
+        untilhere = tm.raw[pos:minimum(mark) - 1]
+        push!(s, untilhere)
+        push!(s, spoof.http.text)
+        pos = (maximum(mark) + 1)
+    end
+    display("text/html", join(s))
 end
 
 export tmd, @tmd_str
