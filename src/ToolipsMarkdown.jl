@@ -97,7 +97,6 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol)
         end
         push!(finales, minimum(firsts[i]) + 1:maximum(firsts[i + 1]) - 1)
     end
-    println(finales)
     [push!(tm.marks, v => label) for v in finales]
 end
 
@@ -139,6 +138,11 @@ highlight_julia!(tm::TextModifier) = begin
     style!(tm, :multistring, ["color" => "#5bf0d9"])
 end
 
+function julia_block!(tm::TextModifier)
+    mark_julia!(tm)
+    highlight_julia!(tm)
+end
+
 string(tm::TextModifier) = begin
     s = Vector{String}()
     marks = [p[1] for p in tm.marks]
@@ -157,8 +161,8 @@ string(tm::TextModifier) = begin
         push!(s, spoof.http.text)
         pos = (maximum(mark) + 1)
     end
-    display("text/html", join(s))
+    join(s)
 end
 
-export tmd, @tmd_str
+export tmd, @tmd_str, TextModifier
 end # module
