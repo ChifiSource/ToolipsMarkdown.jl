@@ -161,7 +161,7 @@ string(tm::TextModifier) = begin
         push!(s, spoof.http.text)
         pos = (maximum(mark) + 1)
     end
-    join(s)
+    return(join(s))
 end
 
 export tmd, @tmd_str, TextModifier
