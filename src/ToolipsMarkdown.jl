@@ -44,22 +44,26 @@ route("/") do c::Connection
 end
 ```
 """
-function tmd(name::String = " ", s::String = "",
-    code_mods::Dict{String, Function} = ["julia" => highlight_julia!])
+function tmd(name::String = "markdown", s::String = "",)
+    mddiv::Component{:div} = divider(name)
+    md = Markdown.parse(s)
+    htm::String = html(md)
+    htm = replace(htm, "&quot;" => "", "&#40;" => "(", "&#41;" => ")", "&#61;" => "=", "&#43;" => "+")
+    mddiv[:text] = htm
+    mddiv
+end
+
+function itmd(name::String = "markdown", s::String = "")
     mddiv::Component{:div} = divider(name)
     md = Markdown.parse(s)
     htm::String = html(md)
     htm = replace(htm, "&quot;" => "", "&#40;" => "(", "&#41;" => ")", "&#61;" => "=", "&#43;" => "+")
     codepos = findall("<code", htm)
-    if lexer != nothing
-        for code in codepos
-            codeend = findnext("</code>", htm, code[2])
-            tgend = findnext(">", htm, code[2])[1] + 1
-            codeoutput = htm[tgend[1]:codeend[1] - 1]
-            b = IOBuffer()
-            Highlights.highlight(b, MIME"text/html"(), codeoutput, lexer)
-            htm = htm[1:code[1] - 1] * "<code>" * String(b.data) * "</code>" * htm[maximum(codeend) + 1:length(htm)]
-        end
+    for code in codepos
+        codeend = findnext("</code>", htm, code[2])
+        tgend = findnext(">", htm, code[2])[1] + 1
+        codeoutput = htm[tgend[1]:codeend[1] - 1]
+        htm = htm[1:code[1] - 1] * "<code>" * String(b.data) * "</code>" * htm[maximum(codeend) + 1:length(htm)]
     end
     mddiv[:text] = htm
     mddiv
