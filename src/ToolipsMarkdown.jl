@@ -118,12 +118,9 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol)
     [push!(tm.marks, v => label) for v in finales]
 end
 
-function mark_between!(tm::TextModifier, label::Symbol, s::String, s2::String ...)
-    mark_after!()
-end
-
-
-function mark_before!(tm::TextModifier, s::String, label::Symbol; until::Vector{String} = Vector{String}())
+function mark_before!(tm::TextModifier, s::String, label::Symbol;
+    until::Vector{String} = Vector{String}(), includedims::Bool = false)
+    includedims = Int64(includedims)
     chars = findall(s, tm.raw)
     for labelrange in chars
         previous = findprev(" ", tm.raw,  labelrange[1])
@@ -134,20 +131,23 @@ function mark_before!(tm::TextModifier, s::String, label::Symbol; until::Vector{
         end
         if length(until) > 1
             lens =  [begin
-                    point = findprev(d, tm.raw,  labelrange[1])
+                    point = findprev(d, tm.raw,  labelrange[1] - 1)
                     if ~(isnothing(point))
                         minimum(point) - 1
                     else
-                        length(tm.raw)
+                        1
                     end
                     end for d in until]
             previous = maximum(lens)
         end
-        push!(tm.marks, previous[1] - 1:maximum(labelrange) + 1 => label)
+        distance = labelrange[1] - previous
+        push!(tm.marks, previous + 1 - includedims:maximum(labelrange) - 1 + includedims => label)
     end
 end
 
-function mark_after!(tm::TextModifier, s::String, label::Symbol; until::Vector{String} = Vector{String}())
+function mark_after!(tm::TextModifier, s::String, label::Symbol;
+    until::Vector{String} = Vector{String}(), includedims::Bool = false)
+    includedims = Int64(includedims)
     chars = findall(s, tm.raw)
     for labelrange in chars
         ending = findnext(" ", tm.raw,  labelrange[1])
@@ -158,25 +158,22 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol; until::Vector{S
         end
         if length(until) > 1
             lens =  [begin
-                    point = findnext(d, tm.raw,  labelrange[1])
-                    println(point)
+                    point = findnext(d, tm.raw,  labelrange[1] + 1)
                     if ~(isnothing(point))
                         minimum(point) - 1
                     else
                         length(tm.raw)
                     end
                     end for d in until]
-            println(lens)
-            ending = minimum(lens)
+            ending = minimum(lens) - 1
         end
-        println(ending)
-        push!(tm.marks, minimum(labelrange) + length(s):ending => label)
+        push!(tm.marks, minimum(labelrange) + length(s) - includedims:ending + includedims => label)
     end
 end
 
 mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "function", :func)
-#    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", "."])
+    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", "."])
     mark_all!(tm, "import", :import)
     mark_all!(tm, "using", :using)
     mark_all!(tm, "end", :end)
@@ -184,10 +181,10 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "mutable", :mutable)
     mark_all!(tm, "begin", :begin)
     mark_all!(tm, "module", :module)
-    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n"])
-    mark_between!(tm, "\"", :string)
-    mark_between!(tm, "\"\"\"", :multistring)
-    mark_between!(tm, "'", :char)
+    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "</br>", "&nbsp;"])
+    mark_after!(tm, "\"", :string, until = ["\"", "\n"], includedims = true)
+    mark_after!(tm, "\"\"\"", :multistring, until = ["\"\"\""], includedims = true)
+    mark_after!(tm, "'", :char, until = ["\n", "'", "</br>", " ", "&nbsp;"])
 end
 
 highlight_julia!(tm::TextModifier) = begin
@@ -219,6 +216,7 @@ end
 string(tm::TextModifier) = begin
     s = tm.raw
     marks = [p[1] for p in tm.marks]
+    println([tm.raw[mark] for mark in marks])
     diff::Int64 = 0
     [begin
         style = ["font-size" => 14px, "color" => "gray"]
