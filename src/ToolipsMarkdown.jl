@@ -184,10 +184,7 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "module", :module)
     mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "</br>", "&nbsp;", "&nbsp;",
     "<br>", ";"])
-#    mark_after!(tm, "\"", :string, until = ["\"", "\n", "<br>", "</br>"])
-#    mark_after!(tm, "\"\"\"", :multistring, until = ["\"\"\""])
-#    mark_after!(tm, "'", :char, until = ["\n", "'", "</br>", " ", "&nbsp;",
-#    "<br>"])
+#    mark_between!(tm, "\"", :string)
 end
 
 highlight_julia!(tm::TextModifier) = begin
@@ -235,7 +232,7 @@ function split_by_range(tm::TextModifier)
         filter!(i -> i != 1:1,  filtmarks)
         println(filtmarks)
     [begin
-        push!(finals, tm.raw[prev:minimum(mark)])
+        push!(finals, tm.raw[prev:minimum(mark) - 1])
         push!(finals, tm.marks[mark] => tm.raw[mark])
         prev = maximum(mark) + 1
     end for mark in sort(filtmarks)]
