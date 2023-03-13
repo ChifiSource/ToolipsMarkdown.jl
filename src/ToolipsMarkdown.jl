@@ -111,7 +111,7 @@ This type is provided
 ```
 ------------------
 ##### constructors
-
+- TextStyleModifier(::String)
 """
 mutable struct TextStyleModifier <: TextModifier
     raw::String
@@ -124,14 +124,44 @@ mutable struct TextStyleModifier <: TextModifier
     end
 end
 
-function style!(tm::TextModifier, marks::Symbol, sty::Vector{Pair{String, String}})
+"""
+**Toolips Markdown**
+### style!(tm::TextStyleModifier, marks::Symbol, sty::Vector{Pair{String, String}})
+------------------
+Styles marks assigned with symbol `marks` to `sty`.
+#### example
+```
+
+```
+"""
+function style!(tm::TextStyleModifier, marks::Symbol, sty::Vector{Pair{String, String}})
     push!(tm.styles, marks => sty)
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function mark_all!(tm::TextModifier, s::String, label::Symbol)
     [push!(tm.marks, v => label) for v in findall(s, tm.raw)]
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function mark_between!(tm::TextModifier, s::String, label::Symbol;
     exclude::String = "\"", excludedim::Int64 = 2)
     firsts = findall(s, tm.raw)
@@ -161,6 +191,16 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol;
     [push!(tm.marks, v => label) for v in finales]
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function mark_before!(tm::TextModifier, s::String, label::Symbol;
     until::Vector{String} = Vector{String}(), includedims::Bool = false)
     includedims = Int64(includedims)
@@ -172,9 +212,9 @@ function mark_before!(tm::TextModifier, s::String, label::Symbol;
         else
             previous = previous[1]
         end
-        if length(until) > 1
+        if length(until) > 0
             lens =  [begin
-                    point = findprev(d, tm.raw,  minimum(labelrange))
+                    point = findprev(d, tm.raw,  minimum(labelrange) - 1)
                     if ~(isnothing(point))
                         minimum(point) + length(d)
                     else
@@ -192,13 +232,13 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
     excludedims_l::Int64 = 0)
     chars = findall(s, tm.raw)
     for labelrange in chars
-        ending = findnext("&nbsp;", tm.raw,  labelrange[1])
+        ending = findnext(" ", tm.raw,  labelrange[1])
         if isnothing(ending)
             ending  = length(tm.raw)
         else
             ending = ending[1] + 1
         end
-        if length(until) > 1
+        if length(until) > 0
             lens =  [begin
                     point = findnext(d, tm.raw,  maximum(labelrange) + 1)
                     if ~(isnothing(point))
@@ -213,46 +253,101 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
     end
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function mark_for!(tm::TextModifier, ch::String, f::Int64, label::Symbol)
     chars = findall(ch, tm.raw)
     [push!(tm.marks, minimum(pos):maximum(pos) + f => label) for pos in chars]
 end
 
+
+function mark_line_after(tm::TextModifier, ch::String, label::Symbol)
+    chars = findall(ch, tm.raw)
+    for char in chars
+        maximum(char:findnext("\n", char[2], tm.raw))
+    end
+end
+
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 clear_marks!(tm::TextModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 mark_julia!(tm::TextModifier) = begin
-    tm.raw = replace(tm.raw, " "  => "&nbsp;", "\n"  =>  "<br>", "</br>" => "<br>",
-    "\\" => "&bsol;")
     mark_all!(tm, "function", :func)
-    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "<br>", "&nbsp;",
-    "<br>"])
-    mark_all!(tm, "import&nbsp;", :import)
-    mark_all!(tm, "using&nbsp;", :using)
-    mark_all!(tm, "&nbsp;end", :end)
-    mark_all!(tm, "<br>end", :end)
-    mark_all!(tm, "&nbsp;struct&nbsp;", :struct)
-    mark_all!(tm, "<br>struct&nbsp;", :struct)
-    mark_all!(tm, "abstract&nbsp;", :abstract)
-    mark_all!(tm, "<br>abstract&nbsp;", :abstract)
-    mark_all!(tm, "&nbsp;mutable&nbsp;", :mutable)
-    mark_all!(tm, "&nbsp;if&nbsp;", :if)
-    mark_all!(tm, "<br>if&nbsp;", :if)
-    mark_all!(tm, "for&nbsp;", :for)
-    mark_all!(tm, "<br>for&nbsp;", :for)
-    mark_all!(tm, "&nbsp;in&nbsp;", :in)
-    mark_all!(tm, "<br>in&nbsp;", :in)
-    mark_all!(tm, "begin&nbsp;", :begin)
-    mark_all!(tm, "begin<br>", :begin)
-    mark_all!(tm, "module&nbsp;", :module)
-    mark_after!(tm, "#",  :comment, until  =  ["<br>"])
-#    mark_after!(tm, "#=",  :comment, until  =  ["=#"])
+    [mark_all!(tm, string(dig), :number) for dig in digits(1234567890)]
+    mark_all!(tm, "1", :number)
+    mark_all!(tm, "1", :number)
+    mark_all!(tm, "1", :number)
+    mark_all!(tm, "1", :number)
+    mark_all!(tm, "1", :number)
+    mark_all!(tm, "1", :number)
+    mark_all!(tm, "1", :number)
+    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
+    "<br>", "("])
+    mark_all!(tm, "import ", :import)
+    mark_all!(tm, "using ", :using)
+    mark_all!(tm, " end", :end)
+    mark_all!(tm, "\nend", :end)
+    mark_all!(tm, " struct ;", :struct)
+    mark_all!(tm, "\nstruct ", :struct)
+    mark_all!(tm, "abstract ;", :abstract)
+    mark_all!(tm, "\nabstract ", :abstract)
+    mark_all!(tm, " mutable ", :mutable)
+    mark_all!(tm, "\nmutable", :mutable)
+    mark_all!(tm, " if ", :if)
+    mark_all!(tm, "\nif ", :if)
+    mark_all!(tm, "for ", :for)
+    mark_all!(tm, "\nfor ", :for)
+    mark_all!(tm, " in ", :in)
+    mark_all!(tm, "\nin ", :in)
+    mark_all!(tm, "begin ", :begin)
+    mark_all!(tm, "begin\n", :begin)
+    mark_all!(tm, "module ;", :module)
+    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
+    #mark_between!(tm, "#=",  :comment, until  =  ["=#"])
     mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
     ";"])
     mark_between!(tm, "\"", :string)
     mark_between!(tm, "\"\"\"", :multistring, excludedim = 0, exclude = "thrthfg")
-    mark_for!(tm, "&bsol;", 1, :exit)
+    mark_for!(tm, "\\", 1, :exit)
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :func, ["color" => "#fc038c"])
     style!(tm, :funcn, ["color" => "blue"])
@@ -268,23 +363,54 @@ highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :for, ["color" => "#fc038c"])
     style!(tm, :in, ["color" => "teal"])
     style!(tm, :abstract, ["color" => "teal"])
+    style!(tm, :number, ["color" => "#8b0000"])
     style!(tm, :type, ["color" => "orange"])
     style!(tm, :exit, ["color" => "teal"])
     style!(tm, :multistring, ["color" => "darkgreen"])
     style!(tm, :default, ["color" => "black"])
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function julia_block!(tm::TextStyleModifier)
     mark_julia!(tm)
     highlight_julia!(tm)
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function julia_block!(f::Function, tm::TextModifier)
     mark_julia!(tm)
     f(tm)
     tm
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 function split_by_range(tm::TextModifier)
     prev::Int64 = 1
     finals = Vector{Any}()
@@ -311,16 +437,30 @@ function split_by_range(tm::TextModifier)
     finals
 end
 
+"""
+**Toolips Markdown**
+### mark_all!(tm::TextModifier, s::String, label::Symbol)
+------------------
+Marks all instances of `s` in `tm.raw` as `label`.
+#### example
+```
+
+```
+"""
 string(tm::TextModifier) = begin
     out::String = join([begin
     spoof = Toolips.SpoofConnection()
-    txt = a("modiftxt", text = text)
-    style!(txt, tm.styles[:default] ...)
+    txt = nothing
     if typeof(text) == Pair{Symbol, String}
-        txt = a("modiftxt", text = text[2])
+        txt = a("modiftxt", text = replace(text[2], " "  => "&nbsp;",
+        "\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;"))
         if text[1] in keys(tm.styles)
             style!(txt, tm.styles[text[1]] ...)
         end
+    else
+        txt = a("modiftxt", text = replace(text, " "  => "&nbsp;",
+        "\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;"))
+        style!(txt, tm.styles[:default] ...)
     end
     write!(spoof, txt)
     spoof.http.text
@@ -328,5 +468,5 @@ string(tm::TextModifier) = begin
     out::String
 end
 
-export tmd, @tmd_str, TextModifier
+export tmd, @tmd_str
 end # module
