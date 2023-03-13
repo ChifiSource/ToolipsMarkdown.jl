@@ -103,18 +103,33 @@ function mark_all!(tm::TextModifier, s::String, label::Symbol)
     [push!(tm.marks, v => label) for v in findall(s, tm.raw)]
 end
 
-function mark_between!(tm::TextModifier, s::String, label::Symbol)
+function mark_between!(tm::TextModifier, s::String, label::Symbol;
+    exclude::String = "\"", excludedim::Int64 = 2)
     firsts = findall(s, tm.raw)
     finales = Vector{UnitRange{Int64}}()
     uneven = length(firsts) % 2 != 0
     for i in 1:length(firsts)
+        mark::UnitRange{Int64} = firsts[i]
+        if length(tm.raw) > minimum(mark) + length(exclude)
+            if  contains(tm.raw[maximum(mark) + 1:maximum(mark) + excludedim], exclude)
+                println("break1")
+                break
+            end
+        end
+        if length(tm.raw) - minimum(mark) > length(excludedim)
+            if  contains(tm.raw[minimum(mark) - excludedim:minimum(mark) - 1], exclude)
+                println("break2")
+                break
+            end
+        end
         if uneven && i == length(firsts)
+            push!(finales, minumum(firsts[i]):length(tm.raw))
             break
         end
         if i % 2 == 0
             continue
         end
-        push!(finales, minimum(firsts[i]) + 1:maximum(firsts[i + 1]) - 1)
+        push!(finales, minimum(firsts[i]):maximum(firsts[i + 1]))
     end
     [push!(tm.marks, v => label) for v in finales]
 end
@@ -124,7 +139,7 @@ function mark_before!(tm::TextModifier, s::String, label::Symbol;
     includedims = Int64(includedims)
     chars = findall(s, tm.raw)
     for labelrange in chars
-        previous = findprev(" ", tm.raw,  labelrange[1])
+        previous = findprev("&nbsp;", tm.raw,  labelrange[1])
          if isnothing(previous)
             previous  = length(tm.raw)
         else
@@ -150,7 +165,7 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
     excludedims_l::Int64 = 0)
     chars = findall(s, tm.raw)
     for labelrange in chars
-        ending = findnext(" ", tm.raw,  labelrange[1])
+        ending = findnext("&nbsp;", tm.raw,  labelrange[1])
         if isnothing(ending)
             ending  = length(tm.raw)
         else
@@ -172,19 +187,33 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
 end
 clear_marks!(tm::TextModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
 mark_julia!(tm::TextModifier) = begin
+    tm.raw = replace(tm.raw, " "  => "&nbsp;", "\n"  =>  "</br>")
     mark_all!(tm, "function", :func)
-    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "</br>", "&nbsp;", "&nbsp;",
+    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "</br>", "&nbsp;",
     "<br>"])
-    mark_all!(tm, "import", :import)
-    mark_all!(tm, "using", :using)
-    mark_all!(tm, "end", :end)
-    mark_all!(tm, "struct", :struct)
-    mark_all!(tm, "mutable", :mutable)
+    mark_all!(tm, "import&nbsp;", :import)
+    mark_all!(tm, "using&nbsp;", :using)
+    mark_all!(tm, "&nbsp;end&nbsp;", :end)
+    mark_all!(tm, "</br>end&nbsp;", :end)
+    mark_all!(tm, "</br>end", :end)
+    mark_all!(tm, "&nbsp;struct&nbsp;", :struct)
+    mark_all!(tm, "</br>struct&nbsp;", :struct)
+    mark_all!(tm, "&nbsp;mutable&nbsp;", :mutable)
+    mark_all!(tm, "&nbsp;if&nbsp;", :if)
+    mark_all!(tm, "</br>if&nbsp;", :if)
+    mark_all!(tm, "&nbsp;for&nbsp;", :for)
+    mark_all!(tm, "</br>for&nbsp;", :for)
+    mark_all!(tm, "&nbsp;in&nbsp;", :in)
+    mark_all!(tm, "</br>in&nbsp;", :in)
     mark_all!(tm, "begin", :begin)
     mark_all!(tm, "module", :module)
+    mark_after!(tm, "#",  :comment, until  =  ["</br>", "<br>"])
+#    mark_after!(tm, "#=",  :comment, until  =  ["=#"])
+    mark_after!(tm, "\\",  :exit)
     mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "</br>", "&nbsp;", "&nbsp;",
     "<br>", ";"])
-#    mark_between!(tm, "\"", :string)
+    mark_between!(tm, "\"", :string)
+    mark_between!(tm, "\"\"\"", :multistring, excludedim = 0, exclude = "thrthfg")
 end
 
 highlight_julia!(tm::TextModifier) = begin
@@ -196,9 +225,12 @@ highlight_julia!(tm::TextModifier) = begin
     style!(tm, :mutable, ["color" => "#b81870"])
     style!(tm, :struct, ["color" => "#fc038c"])
     style!(tm, :begin, ["color" => "#fc038c"])
-    style!(tm, :module, ["color" => "#fc038c"])
     style!(tm, :module, ["color" => "red"])
     style!(tm, :string, ["color" => "green"])
+    style!(tm, :if, ["color" => "#fc038c"])
+    style!(tm, :for, ["color" => "#fc038c"])
+    style!(tm, :in, ["color" => "teal"])
+    style!(tm, :exit, ["color" => "teal"])
     style!(tm, :type, ["color" => "orange"])
     style!(tm, :multistring, ["color" => "darkgreen"])
     style!(tm, :default, ["color" => "black"])
@@ -248,10 +280,12 @@ string(tm::TextModifier) = begin
     spoof = Toolips.SpoofConnection()
     txt = a("modiftxt", text = text)
     style!(txt, tm.styles[:default] ...)
-        if typeof(text) == Pair{Symbol, String} && text[1] in keys(tm.styles)
-            txt = a("modiftxt", text = text[2])
+    if typeof(text) == Pair{Symbol, String}
+        txt = a("modiftxt", text = text[2])
+        if text[1] in keys(tm.styles)
             style!(txt, tm.styles[text[1]] ...)
         end
+    end
     write!(spoof, txt)
     spoof.http.text
     end for text in split_by_range(tm)])
