@@ -15,6 +15,7 @@ using Toolips
 import Toolips: Modifier
 import Toolips: style!, string
 using Markdown
+
 """
 **Toolips Markdown**
 ### @tmd_str -> ::Component
@@ -55,10 +56,10 @@ end
 
 """
 **Toolips Markdown**
-### tmd(name::String = "tmd", s::String = "") -> ::Component
+### itmd(name::String = "markdown", s::String = "", interpolators::Pair{String, Vector{Function}} ...) -> ::Component{:div}
 ------------------
-Turns a markdown string into a Toolips Component. Markdown will always use
-default styling.
+Interpolated TMD! This method allows you to provide your own TextModifier functions
+in a Vector for each type of code block inside of a markdown document.
 #### example
 ```
 route("/") do c::Connection
@@ -67,7 +68,9 @@ route("/") do c::Connection
 end
 ```
 """
-function itmd(name::String = "markdown", s::String = "")
+function itmd(name::String = "markdown",
+    interpolators::Pair{String, Vector{Function}} ...)
+    throw("Interpolated TMD is a Toolips Markdown 0.1.3 feature. Not yet implemented.")
     mddiv::Component{:div} = divider(name)
     md = Markdown.parse(s)
     htm::String = html(md)
@@ -83,15 +86,41 @@ function itmd(name::String = "markdown", s::String = "")
     mddiv
 end
 
-mutable struct TextModifier <: Modifier
+"""
+### abstract type TextModifier <: Toolips.Modifier
+TextModifiers are modifiers that change outgoing text into different forms,
+whether this be in servables or web-formatted strings. These are unique in that
+they can be provided to `itmd` (`0.1.3`+) in order to create interpolated tmd
+blocks, or just handle these things on their own.
+##### Consistencies
+- raw**::String**
+- marks**::Dict{UnitRange{Int64}, Symbol}**
+"""
+abstract type TextModifier <: Modifier end
+
+"""
+### TextStyleModifier
+- raw**::String**
+- marks**::Dict{UnitRange{Int64}, Symbol}**
+- styles**::Dict{Symbol, Vector{Pair{String, String}}}**
+
+This type is provided
+##### example
+```
+
+```
+------------------
+##### constructors
+
+"""
+mutable struct TextStyleModifier <: TextModifier
     raw::String
     marks::Dict{UnitRange{Int64}, Symbol}
     styles::Dict{Symbol, Vector{Pair{String, String}}}
-    importances::Dict{Symbol, Int64}
-    function TextModifier(raw::String)
+    function TextStyleModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
         styles = Dict{Symbol, Vector{Pair{String, String}}}()
-        new(raw, marks, styles, Dict{Symbol, Int64}())
+        new(raw, marks, styles)
     end
 end
 
@@ -112,18 +141,16 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol;
         mark::UnitRange{Int64} = firsts[i]
         if length(tm.raw) > minimum(mark) + length(exclude)
             if  contains(tm.raw[maximum(mark) + 1:maximum(mark) + excludedim], exclude)
-                println("break1")
                 break
             end
         end
         if length(tm.raw) - minimum(mark) > length(excludedim)
             if  contains(tm.raw[minimum(mark) - excludedim:minimum(mark) - 1], exclude)
-                println("break2")
                 break
             end
         end
         if uneven && i == length(firsts)
-            push!(finales, minumum(firsts[i]):length(tm.raw))
+            push!(finales, minimum(firsts[i]):length(tm.raw))
             break
         end
         if i % 2 == 0
@@ -169,7 +196,7 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
         if isnothing(ending)
             ending  = length(tm.raw)
         else
-            ending = ending[1]
+            ending = ending[1] + 1
         end
         if length(until) > 1
             lens =  [begin
@@ -185,44 +212,54 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
         push!(tm.marks, minimum(labelrange) + excludedims_l:ending -excludedims_r => label)
     end
 end
+
+function mark_for!(tm::TextModifier, ch::String, f::Int64, label::Symbol)
+    chars = findall(ch, tm.raw)
+    [push!(tm.marks, minimum(pos):maximum(pos) + f => label) for pos in chars]
+end
+
 clear_marks!(tm::TextModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
+
 mark_julia!(tm::TextModifier) = begin
-    tm.raw = replace(tm.raw, " "  => "&nbsp;", "\n"  =>  "</br>")
+    tm.raw = replace(tm.raw, " "  => "&nbsp;", "\n"  =>  "<br>", "</br>" => "<br>",
+    "\\" => "&bsol;")
     mark_all!(tm, "function", :func)
-    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "</br>", "&nbsp;",
+    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "<br>", "&nbsp;",
     "<br>"])
     mark_all!(tm, "import&nbsp;", :import)
     mark_all!(tm, "using&nbsp;", :using)
-    mark_all!(tm, "&nbsp;end&nbsp;", :end)
-    mark_all!(tm, "</br>end&nbsp;", :end)
-    mark_all!(tm, "</br>end", :end)
+    mark_all!(tm, "&nbsp;end", :end)
+    mark_all!(tm, "<br>end", :end)
     mark_all!(tm, "&nbsp;struct&nbsp;", :struct)
-    mark_all!(tm, "</br>struct&nbsp;", :struct)
+    mark_all!(tm, "<br>struct&nbsp;", :struct)
+    mark_all!(tm, "abstract&nbsp;", :abstract)
+    mark_all!(tm, "<br>abstract&nbsp;", :abstract)
     mark_all!(tm, "&nbsp;mutable&nbsp;", :mutable)
     mark_all!(tm, "&nbsp;if&nbsp;", :if)
-    mark_all!(tm, "</br>if&nbsp;", :if)
-    mark_all!(tm, "&nbsp;for&nbsp;", :for)
-    mark_all!(tm, "</br>for&nbsp;", :for)
+    mark_all!(tm, "<br>if&nbsp;", :if)
+    mark_all!(tm, "for&nbsp;", :for)
+    mark_all!(tm, "<br>for&nbsp;", :for)
     mark_all!(tm, "&nbsp;in&nbsp;", :in)
-    mark_all!(tm, "</br>in&nbsp;", :in)
-    mark_all!(tm, "begin", :begin)
-    mark_all!(tm, "module", :module)
-    mark_after!(tm, "#",  :comment, until  =  ["</br>", "<br>"])
+    mark_all!(tm, "<br>in&nbsp;", :in)
+    mark_all!(tm, "begin&nbsp;", :begin)
+    mark_all!(tm, "begin<br>", :begin)
+    mark_all!(tm, "module&nbsp;", :module)
+    mark_after!(tm, "#",  :comment, until  =  ["<br>"])
 #    mark_after!(tm, "#=",  :comment, until  =  ["=#"])
-    mark_after!(tm, "\\",  :exit)
-    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "</br>", "&nbsp;", "&nbsp;",
-    "<br>", ";"])
+    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
+    ";"])
     mark_between!(tm, "\"", :string)
     mark_between!(tm, "\"\"\"", :multistring, excludedim = 0, exclude = "thrthfg")
+    mark_for!(tm, "&bsol;", 1, :exit)
 end
 
-highlight_julia!(tm::TextModifier) = begin
+highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :func, ["color" => "#fc038c"])
     style!(tm, :funcn, ["color" => "blue"])
     style!(tm, :using, ["color" => "teal"])
     style!(tm, :import, ["color" => "#fc038c"])
     style!(tm, :end, ["color" => "#b81870"])
-    style!(tm, :mutable, ["color" => "#b81870"])
+    style!(tm, :mutable, ["color" => "teal"])
     style!(tm, :struct, ["color" => "#fc038c"])
     style!(tm, :begin, ["color" => "#fc038c"])
     style!(tm, :module, ["color" => "red"])
@@ -230,13 +267,14 @@ highlight_julia!(tm::TextModifier) = begin
     style!(tm, :if, ["color" => "#fc038c"])
     style!(tm, :for, ["color" => "#fc038c"])
     style!(tm, :in, ["color" => "teal"])
-    style!(tm, :exit, ["color" => "teal"])
+    style!(tm, :abstract, ["color" => "teal"])
     style!(tm, :type, ["color" => "orange"])
+    style!(tm, :exit, ["color" => "teal"])
     style!(tm, :multistring, ["color" => "darkgreen"])
     style!(tm, :default, ["color" => "black"])
 end
 
-function julia_block!(tm::TextModifier)
+function julia_block!(tm::TextStyleModifier)
     mark_julia!(tm)
     highlight_julia!(tm)
 end
@@ -262,7 +300,6 @@ function split_by_range(tm::TextModifier)
         end
     end for nmark in collect(keys(tm.marks))]
         filter!(i -> i != 1:1,  filtmarks)
-        println(filtmarks)
     [begin
         push!(finals, tm.raw[prev:minimum(mark) - 1])
         push!(finals, tm.marks[mark] => tm.raw[mark])
@@ -275,7 +312,6 @@ function split_by_range(tm::TextModifier)
 end
 
 string(tm::TextModifier) = begin
-    println([tm.raw[mark] for mark in keys(tm.marks)])
     out::String = join([begin
     spoof = Toolips.SpoofConnection()
     txt = a("modiftxt", text = text)
