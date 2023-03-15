@@ -264,6 +264,9 @@ Marks all instances of `s` in `tm.raw` as `label`.
 ```
 """
 function mark_for!(tm::TextModifier, ch::String, f::Int64, label::Symbol)
+    if length(tm.raw) == 1
+        return
+    end
     chars = findall(ch, tm.raw)
     [push!(tm.marks, minimum(pos):maximum(pos) + f => label) for pos in chars]
 end
@@ -328,12 +331,13 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "\nin ", :in)
     mark_all!(tm, "begin ", :begin)
     mark_all!(tm, "begin\n", :begin)
-    mark_all!(tm, "module ;", :module)
+    mark_all!(tm, "module ", :module)
     mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
     #mark_between!(tm, "#=",  :comment, until  =  ["=#"])
     mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
     ";"])
     mark_between!(tm, "\"", :string)
+    mark_between!(tm, "'", :char)
     mark_between!(tm, "\"\"\"", :multistring, excludedim = 0, exclude = "thrthfg")
     mark_for!(tm, "\\", 1, :exit)
 end
@@ -364,10 +368,11 @@ highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :in, ["color" => "teal"])
     style!(tm, :abstract, ["color" => "teal"])
     style!(tm, :number, ["color" => "#8b0000"])
-    style!(tm, :type, ["color" => "orange"])
+    style!(tm, :char, ["color" => "#8b0000"])
+    style!(tm, :type, ["color" => "#D67229"])
     style!(tm, :exit, ["color" => "teal"])
     style!(tm, :multistring, ["color" => "darkgreen"])
-    style!(tm, :default, ["color" => "black"])
+    style!(tm, :default, ["color" => "#3D3D3D"])
 end
 
 """
