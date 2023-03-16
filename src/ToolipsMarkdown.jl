@@ -159,9 +159,10 @@ end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### mark_between!(tm::TextModifier, s::String, label::Symbol; exclude::String = "\\"", excludedim::Int64 = 2)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Marks between each delimeter, unique in that this is done with by dividing the
+count by two.
 #### example
 ```
 
@@ -206,7 +207,10 @@ end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+```julia
+mark_before!(tm::TextModifier, s::String, label::Symbol; until::Vector{String},
+includedims_l::Int64 = 0, includedims_r::Int64 = 0)
+```
 ------------------
 Marks all instances of `s` in `tm.raw` as `label`.
 #### example
@@ -253,7 +257,7 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
         if isnothing(ending)
             ending  = length(tm.raw)
         else
-            ending = ending[1] + 1
+            ending = ending[1]
         end
         if length(until) > 0
             lens =  [begin
@@ -273,6 +277,16 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
             pos => label)
         end
     end
+end
+
+function mark_inside!(f::Function, tm::TextModifier, label::Symbol)
+    [begin
+        n = minimum(r)
+        ntm = TextStyleModifier(tm.raw[r])
+        f(ntm)
+        [push!(tm.marks,
+        minimum(rang[1]) + n:maximum(rang[1]) + n => rang[2]) for rang in ntm.marks]
+    end for r in findall(v -> v == label, tm.marks)]
 end
 
 """
@@ -320,9 +334,9 @@ clear_marks!(tm::TextModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### mark_julia!(tm::TextModifier)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Marks julia syntax.
 #### example
 ```
 
@@ -361,14 +375,16 @@ mark_julia!(tm::TextModifier) = begin
     mark_between!(tm, "\"", :string)
     mark_between!(tm, "'", :char)
     mark_between!(tm, "\"\"\"", :multistring, excludedim = 0, exclude = "thrthfg")
-    mark_for!(tm, "\\", 1, :exit)
+#=    mark_inside!(tm, :string) do tm2
+        mark_for!(tm2, "\\", 1, :exit)
+    end =#
 end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### highlight_julia!(tm::TextModifier)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Marks default style for julia code.
 #### example
 ```
 
@@ -399,9 +415,9 @@ end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### julia_block!(tm::TextModifier)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Marks default style for julia code.
 #### example
 ```
 
@@ -414,25 +430,10 @@ end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### split_by_range(tm::TextModifier)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
-#### example
-```
-
-```
-"""
-function julia_block!(f::Function, tm::TextModifier)
-    mark_julia!(tm)
-    f(tm)
-    tm
-end
-
-"""
-**Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
-------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Filters marks and then collects them into a `Vector{Any}` of Strings and
+Pairs of symbols and styles.
 #### example
 ```
 
@@ -442,9 +443,7 @@ function split_by_range(tm::TextModifier)
     prev::Int64 = 1
     finals = Vector{Any}()
     filtmarks = [begin
-        if nmark == 1:1
-            1:1
-        elseif length(nmark) <= 0
+        if length(nmark) <= 0
             1:1
         elseif isnothing(nmark)
             1:1
