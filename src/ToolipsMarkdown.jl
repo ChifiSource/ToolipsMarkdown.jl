@@ -149,7 +149,12 @@ Marks all instances of `s` in `tm.raw` as `label`.
 ```
 """
 function mark_all!(tm::TextModifier, s::String, label::Symbol)
-    [push!(tm.marks, v => label) for v in findall(s, tm.raw)]
+    [begin
+    if ~(length(findall(i -> length(findall(n -> n in i, v)) > 0,
+     collect(keys(tm.marks)))) > 0)
+        push!(tm.marks, v => label)
+    end
+     end for v in findall(s, tm.raw)]
 end
 
 """
@@ -180,13 +185,21 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol;
             end
         end
         if uneven && i == length(firsts)
-            push!(finales, minimum(firsts[i]):length(tm.raw))
+            pos = minimum(firsts[i]):length(tm.raw)
+            if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
+             collect(keys(tm.marks)))) > 0)
+                push!(finales, pos)
+            end
             break
         end
         if i % 2 == 0
             continue
         end
-        push!(finales, minimum(firsts[i]):maximum(firsts[i + 1]))
+        pos = minimum(firsts[i]):maximum(firsts[i + 1])
+        if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
+         collect(keys(tm.marks)))) > 0)
+            push!(finales, pos)
+        end
     end
     [push!(tm.marks, v => label) for v in finales]
 end
@@ -202,8 +215,8 @@ Marks all instances of `s` in `tm.raw` as `label`.
 ```
 """
 function mark_before!(tm::TextModifier, s::String, label::Symbol;
-    until::Vector{String} = Vector{String}(), includedims::Bool = false)
-    includedims = Int64(includedims)
+    until::Vector{String} = Vector{String}(), includedims_l::Int64 = 0,
+    includedims_r::Int64 = 0)
     chars = findall(s, tm.raw)
     for labelrange in chars
         previous = findprev("&nbsp;", tm.raw,  labelrange[1])
@@ -223,13 +236,17 @@ function mark_before!(tm::TextModifier, s::String, label::Symbol;
                     end for d in until]
             previous = maximum(lens)
         end
-        push!(tm.marks, previous - includedims:maximum(labelrange) - 1 + includedims => label)
+        pos = previous - includedims_l:maximum(labelrange) + includedims_r
+        if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
+         collect(keys(tm.marks)))) > 0)
+            push!(tm.marks, pos => label)
+        end
     end
 end
 
 function mark_after!(tm::TextModifier, s::String, label::Symbol;
-    until::Vector{String} = Vector{String}(), excludedims_r::Int64 = 0,
-    excludedims_l::Int64 = 0)
+    until::Vector{String} = Vector{String}(), includedims_r::Int64 = 0,
+    includedims_l::Int64 = 0)
     chars = findall(s, tm.raw)
     for labelrange in chars
         ending = findnext(" ", tm.raw,  labelrange[1])
@@ -249,7 +266,12 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
                     end for d in until]
             ending = minimum(lens)
         end
-        push!(tm.marks, minimum(labelrange) + excludedims_l:ending -excludedims_r => label)
+        pos = minimum(labelrange) + 1 - includedims_l:ending - includedims_r
+        if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
+         collect(keys(tm.marks)))) > 0)
+            push!(tm.marks,
+            pos => label)
+        end
     end
 end
 
@@ -268,7 +290,12 @@ function mark_for!(tm::TextModifier, ch::String, f::Int64, label::Symbol)
         return
     end
     chars = findall(ch, tm.raw)
-    [push!(tm.marks, minimum(pos):maximum(pos) + f => label) for pos in chars]
+    [begin
+    if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
+     collect(keys(tm.marks)))) > 0)
+        push!(tm.marks, minimum(pos):maximum(pos) + f => label)
+    end
+    end for pos in chars]
 end
 
 
@@ -304,13 +331,8 @@ Marks all instances of `s` in `tm.raw` as `label`.
 mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "function", :func)
     [mark_all!(tm, string(dig), :number) for dig in digits(1234567890)]
-    mark_all!(tm, "1", :number)
-    mark_all!(tm, "1", :number)
-    mark_all!(tm, "1", :number)
-    mark_all!(tm, "1", :number)
-    mark_all!(tm, "1", :number)
-    mark_all!(tm, "1", :number)
-    mark_all!(tm, "1", :number)
+    mark_all!(tm, "true", :number)
+    mark_all!(tm, "false", :number)
     mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
     "<br>", "("])
     mark_all!(tm, "import ", :import)
@@ -420,7 +442,7 @@ function split_by_range(tm::TextModifier)
     prev::Int64 = 1
     finals = Vector{Any}()
     filtmarks = [begin
-        if nmark != mark && any(i -> i in keys(tm.marks), nmark)
+        if nmark == 1:1
             1:1
         elseif length(nmark) <= 0
             1:1
