@@ -169,19 +169,19 @@ count by two.
 ```
 """
 function mark_between!(tm::TextModifier, s::String, label::Symbol;
-    exclude::String = "\"", excludedim::Int64 = 2)
+    exclude::String = "\"")
     firsts = findall(s, tm.raw)
     finales = Vector{UnitRange{Int64}}()
     uneven = length(firsts) % 2 != 0
     for i in 1:length(firsts)
         mark::UnitRange{Int64} = firsts[i]
-        if length(tm.raw) > minimum(mark) + length(exclude)
-            if  contains(tm.raw[maximum(mark) + 1:maximum(mark) + excludedim], exclude)
+        if length(tm.raw) > maximum(mark) + length(exclude) && length(tm.raw) > length(exclude) + length(s)
+            if  contains(tm.raw[maximum(mark) + 1:maximum(mark) + length(exclude)], exclude)
                 break
             end
         end
-        if length(tm.raw) - minimum(mark) > length(excludedim)
-            if  contains(tm.raw[minimum(mark) - excludedim:minimum(mark) - 1], exclude)
+        if minimum(mark) - length(exclude) > 0 && length(tm.raw) > length(exclude) + length(s)
+            if  contains(tm.raw[minimum(mark) - 1:minimum(mark) - length(exclude)], exclude)
                 break
             end
         end
@@ -212,7 +212,7 @@ mark_before!(tm::TextModifier, s::String, label::Symbol; until::Vector{String},
 includedims_l::Int64 = 0, includedims_r::Int64 = 0)
 ```
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+marks before a given string until hitting any value in `until`.
 #### example
 ```
 
@@ -240,7 +240,7 @@ function mark_before!(tm::TextModifier, s::String, label::Symbol;
                     end for d in until]
             previous = maximum(lens)
         end
-        pos = previous - includedims_l:maximum(labelrange) + includedims_r
+        pos = previous - includedims_l:maximum(labelrange) - 1 + includedims_r
         if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
          collect(keys(tm.marks)))) > 0)
             push!(tm.marks, pos => label)
@@ -248,6 +248,19 @@ function mark_before!(tm::TextModifier, s::String, label::Symbol;
     end
 end
 
+"""
+**Toolips Markdown**
+```julia
+mark_after!(tm::TextModifier, s::String, label::Symbol; until::Vector{String},
+includedims_l::Int64 = 0, includedims_r::Int64 = 0)
+```
+------------------
+marks after a given string until hitting any value in `until`.
+#### example
+```
+
+```
+"""
 function mark_after!(tm::TextModifier, s::String, label::Symbol;
     until::Vector{String} = Vector{String}(), includedims_r::Int64 = 0,
     includedims_l::Int64 = 0)
@@ -279,21 +292,36 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
     end
 end
 
+"""
+**Toolips Markdown**
+```julia
+mark_inside!(f::Function, tm::TextModifier)
+```
+------------------
+marks before a given string until hitting any value in `until`.
+#### example
+```
+
+```
+"""
 function mark_inside!(f::Function, tm::TextModifier, label::Symbol)
+    labelmarks = findall(v -> v == label, tm.marks)
     [begin
         n = minimum(r)
         ntm = TextStyleModifier(tm.raw[r])
         f(ntm)
-        [push!(tm.marks,
-        minimum(rang[1]) + n:maximum(rang[1]) + n => rang[2]) for rang in ntm.marks]
-    end for r in findall(v -> v == label, tm.marks)]
+        [begin
+            push!(tm.marks,
+            minimum(rang[1]) + n:maximum(rang[1]) + n => rang[2])
+        end for rang in ntm.marks]
+    end for r in labelmarks]
 end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### mark_for!(tm::TextModifier, s::String, f::Int64, label::Symbol)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Marks a certain number of characters after a given value.
 #### example
 ```
 
@@ -313,11 +341,16 @@ function mark_for!(tm::TextModifier, ch::String, f::Int64, label::Symbol)
 end
 
 
-function mark_line_after(tm::TextModifier, ch::String, label::Symbol)
+function mark_line_after!(tm::TextModifier, ch::String, label::Symbol)
     chars = findall(ch, tm.raw)
     for char in chars
         maximum(char:findnext("\n", char[2], tm.raw))
     end
+end
+
+function mark_line_startswith!(tm::TextModifier, ch::String, label::Symbol)
+    marks = findall("\n$ch", tm.raw)
+    [push!(tm.marks, mark[2]:findnext("\n", mark[2], tm.raw) => label) for mark in marks]
 end
 
 """
@@ -343,10 +376,17 @@ Marks julia syntax.
 ```
 """
 mark_julia!(tm::TextModifier) = begin
+    mark_between!(tm, "\"\"\"", :multistring, exclude = "\"\"\"")
+    mark_between!(tm, "\"", :string)
     mark_all!(tm, "function", :func)
+    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
+    ";"])
+    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
     [mark_all!(tm, string(dig), :number) for dig in digits(1234567890)]
     mark_all!(tm, "true", :number)
     mark_all!(tm, "false", :number)
+    [mark_all!(tm, string(op), :op) for op in split(
+    """<: = == < > => -> || -= += + / * - ~ <= >= &&""", " ")]
     mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
     "<br>", "("])
     mark_all!(tm, "import ", :import)
@@ -359,7 +399,13 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "\nabstract ", :abstract)
     mark_all!(tm, " mutable ", :mutable)
     mark_all!(tm, "\nmutable", :mutable)
+    mark_all!(tm, "elseif ", :if)
     mark_all!(tm, " if ", :if)
+    mark_all!(tm, "if ", :if)
+    mark_all!(tm, "else ", :if)
+    mark_all!(tm, "export ", :import)
+    mark_all!(tm, "try ", :if)
+    mark_all!(tm, "catch ", :if)
     mark_all!(tm, "\nif ", :if)
     mark_all!(tm, "for ", :for)
     mark_all!(tm, "\nfor ", :for)
@@ -368,13 +414,10 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "begin ", :begin)
     mark_all!(tm, "begin\n", :begin)
     mark_all!(tm, "module ", :module)
-    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
+
     #mark_between!(tm, "#=",  :comment, until  =  ["=#"])
-    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
-    ";"])
-    mark_between!(tm, "\"", :string)
     mark_between!(tm, "'", :char)
-    mark_between!(tm, "\"\"\"", :multistring, excludedim = 0, exclude = "thrthfg")
+
 #=    mark_inside!(tm, :string) do tm2
         mark_for!(tm2, "\\", 1, :exit)
     end =#
@@ -409,6 +452,7 @@ highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :char, ["color" => "#8b0000"])
     style!(tm, :type, ["color" => "#D67229"])
     style!(tm, :exit, ["color" => "teal"])
+    style!(tm, :op, ["color" => "darkblue"])
     style!(tm, :multistring, ["color" => "darkgreen"])
     style!(tm, :default, ["color" => "#3D3D3D"])
 end
