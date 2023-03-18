@@ -355,9 +355,9 @@ end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### clear_marks!(tm::TextModifier)
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Clears all marks in text modifier.
 #### example
 ```
 
@@ -509,9 +509,9 @@ end
 
 """
 **Toolips Markdown**
-### mark_all!(tm::TextModifier, s::String, label::Symbol)
+### string(tm::TextModifier) -> ::String
 ------------------
-Marks all instances of `s` in `tm.raw` as `label`.
+Styles marks together into `String`.
 #### example
 ```
 
