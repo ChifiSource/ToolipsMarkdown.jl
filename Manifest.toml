@@ -68,9 +68,9 @@ uuid = "d6f4376e-aef5-505a-96c1-9c027394607a"
 
 [[deps.MbedTLS]]
 deps = ["Dates", "MbedTLS_jll", "MozillaCACerts_jll", "Random", "Sockets"]
-git-tree-sha1 = "891d3b4e8f8415f53108b4918d0183e61e18015b"
+git-tree-sha1 = "2f0be365951a88dfb084f754005177e6dfb00ed0"
 uuid = "739be429-bea8-5141-9913-cc70e7f3736d"
-version = "1.1.0"
+version = "1.1.4"
 
 [[deps.MbedTLS_jll]]
 deps = ["Artifacts", "Libdl"]
@@ -123,14 +123,14 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 
 [[deps.Toolips]]
 deps = ["Crayons", "Dates", "HTTP", "ParseNotEval", "Pkg", "Sockets"]
-git-tree-sha1 = "e271204e8cd4076b2b672af31801950528398d61"
+git-tree-sha1 = "827aa7260f159d84754e0680954ec9cba9608a1f"
 uuid = "a47e2ad8-fcf7-417c-9746-32b9bdf220bd"
-version = "0.1.2"
+version = "0.2.1"
 
 [[deps.URIs]]
-git-tree-sha1 = "97bbe755a53fe859669cd907f2d96aee8d2c1355"
+git-tree-sha1 = "e59ecc5a41b000fa94423a578d29290c7266fc10"
 uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.3.0"
+version = "1.4.0"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
