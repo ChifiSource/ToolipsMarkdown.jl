@@ -6,7 +6,7 @@ by team
 This software is MIT-licensed.
 ### Toolips Markdown
 A simple markdown to Toolips Component parser. Wraps markdown components into
-a Toolips.divier
+a Toolips.div
 ##### Module Composition
 - [**ToolipsMarkdown**](https://github.com/ChifiSource/ToolipsMarkdown.jl)
 """
@@ -123,6 +123,8 @@ mutable struct TextStyleModifier <: TextModifier
         new(raw, marks, styles)
     end
 end
+
+clear!(tm::TextStyleModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
 
 """
 **Toolips Markdown**
@@ -283,7 +285,7 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
                     end for d in until]
             ending = minimum(lens)
         end
-        pos = minimum(labelrange) + 1 - includedims_l:ending - includedims_r
+        pos = minimum(labelrange) - includedims_l:ending - includedims_r
         if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
          collect(keys(tm.marks)))) > 0)
             push!(tm.marks,
@@ -474,41 +476,6 @@ end
 
 """
 **Toolips Markdown**
-### split_by_range(tm::TextModifier)
-------------------
-Filters marks and then collects them into a `Vector{Any}` of Strings and
-Pairs of symbols and styles.
-#### example
-```
-
-```
-"""
-function split_by_range(tm::TextModifier)
-    prev::Int64 = 1
-    finals = Vector{Any}()
-    filtmarks = [begin
-        if length(nmark) <= 0
-            1:1
-        elseif isnothing(nmark)
-            1:1
-        else
-            nmark
-        end
-    end for nmark in collect(keys(tm.marks))]
-        filter!(i -> i != 1:1,  filtmarks)
-    [begin
-        push!(finals, tm.raw[prev:minimum(mark) - 1])
-        push!(finals, tm.marks[mark] => tm.raw[mark])
-        prev = maximum(mark) + 1
-    end for mark in sort(filtmarks)]
-        if prev < length(tm.raw)
-            push!(finals, tm.raw[prev:length(tm.raw)])
-        end
-    finals
-end
-
-"""
-**Toolips Markdown**
 ### string(tm::TextModifier) -> ::String
 ------------------
 Styles marks together into `String`.
@@ -517,26 +484,52 @@ Styles marks together into `String`.
 
 ```
 """
-string(tm::TextModifier) = begin
-    out::String = join([begin
-    spoof = Toolips.SpoofConnection()
-    txt = nothing
-    if typeof(text) == Pair{Symbol, String}
-        txt = a("modiftxt", text = replace(text[2], " "  => "&nbsp;",
-        "\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;"))
-        if text[1] in keys(tm.styles)
-            style!(txt, tm.styles[text[1]] ...)
-        end
-    else
-        txt = a("modiftxt", text = replace(text, " "  => "&nbsp;",
-        "\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;"))
+function string(tm::TextStyleModifier)
+    if length(tm.marks) == 0
+        txt = a("modiftxt", text = rep_str(tm.raw))
         style!(txt, tm.styles[:default] ...)
+        sc = Toolips.SpoofConnection()
+        write!(sc, txt)
+        return(sc.http.text)::String
     end
-    write!(spoof, txt)
-    spoof.http.text
-    end for text in split_by_range(tm)])
-    out::String
+    prev = 1
+    finales = Vector{Servable}()
+    sortedmarks = sort(tm.marks)
+    lastmax::Int64 = length(tm.raw)
+    loop_len = length(keys(tm.marks))
+    [begin
+        if length(mark) > 1
+            mname = tm.marks[mark]
+            if minimum(mark) - prev > 0
+                txt = a("modiftxt", text = rep_str(tm.raw[prev:minimum(mark) - 1]))
+                style!(txt, tm.styles[:default] ...)
+                push!(finales, txt)
+            end
+            txt = a("modiftxt", text = tm.raw[mark])
+            if mname in keys(tm.styles)
+                style!(txt, tm.styles[mname] ...)   
+            else
+                style!(txt, tm.styles[:default] ...)
+            end
+            push!(finales, txt)
+            prev = maximum(mark) + 1
+        end
+        if e == loop_len
+            lastmax = maximum(mark)
+        end
+    end for (e, mark) in enumerate(keys(sortedmarks))]
+    if lastmax != length(tm.raw)
+        txt = a("modiftxt", text = rep_str(tm.raw[lastmax + 1:length(tm.raw)]))
+        style!(txt, tm.styles[:default] ...)
+        push!(finales, txt)
+    end
+    sc = Toolips.SpoofConnection()
+    write!(sc, finales)
+    sc.http.text::String
 end
+
+rep_str(s::String) = replace(s, " "  => "&nbsp;",
+"\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;")
 
 export tmd, @tmd_str
 end # module
