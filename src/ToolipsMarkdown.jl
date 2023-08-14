@@ -149,6 +149,8 @@ function style!(tm::TextStyleModifier, marks::Symbol, sty::Vector{Pair{String, S
     push!(tm.styles, marks => sty)
 end
 
+repeat_offenders = ['\n', ' ', ',', '(', ')', ';', '\"']
+
 """
 **Toolips Markdown**
 ### mark_all!(tm::TextModifier, s::String, label::Symbol)
@@ -184,6 +186,16 @@ function mark_all!(tm::TextModifier, s::String, label::Symbol)::Nothing
     nothing
 end
 
+
+function mark_all!(tm::TextModifier, c::Char, label::Symbol)
+    [begin
+        pos = v[1]
+        if ~(pos in tm.taken)
+            push!(tm, pos:pos => label)
+        end
+    end for v in findall(character -> character == c, tm.raw)]
+end
+
 """
 **Toolips Markdown**
 ### mark_between!(tm::TextModifier, s::String, label::Symbol; exclude::String = "\\"", excludedim::Int64 = 2)
@@ -203,11 +215,10 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol)
             if uneven && e == length(positions)
                 if ~(any(n -> n in v[1]:length(tm.raw), tm.taken))
                     atstart = v[1] - 1 < 1
-                    atend = maximum(v) == length(tm.raw)
                     if atstart
                         push!(tm, v[1]:length(tm.raw) => label)
                     else
-                        if ~(tm.raw[maximum(mark1) + 1] == s[1])
+                        if ~(tm.raw[minimum(v[1]) - 1] == s[1])
                             push!(tm, v[1]:length(tm.raw) => label)
                         end
                     end  
@@ -407,50 +418,39 @@ Marks julia syntax.
 ```
 """
 mark_julia!(tm::TextModifier) = begin
-    mark_between!(tm, "\"\"\"", :multistring, exclude = "\"\"\"")
+    # delim
+    mark_between!(tm, "\"\"\"", :multistring)
     mark_between!(tm, "\"", :string)
+    mark_between!(tm, "'", :char)
+    # keywords
     mark_all!(tm, "function", :func)
-    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
-    ";"])
-    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
-    [mark_all!(tm, string(dig), :number) for dig in digits(1234567890)]
+    mark_all!(tm, "import", :import)
+    mark_all!(tm, "using", :using)
+    mark_all!(tm, "end", :end)
+    mark_all!(tm, "struct", :struct)
+    mark_all!(tm, "abstract", :abstract)
+    mark_all!(tm, "mutable", :mutable)
+    mark_all!(tm, "if", :if)
+    mark_all!(tm, "else", :if)
+    mark_all!(tm, "elseif", :if)
+    mark_all!(tm, "export ", :using)
+    mark_all!(tm, "try ", :if)
+    mark_all!(tm, "catch ", :if)
+    mark_all!(tm, "for", :for)
+    mark_all!(tm, "begin", :begin)
+    mark_all!(tm, "module", :module)
+    # math
+    [mark_all!(tm, Char(dig), :number) for dig in digits(1234567890)]
     mark_all!(tm, "true", :number)
     mark_all!(tm, "false", :number)
     [mark_all!(tm, string(op), :op) for op in split(
     """<: = == < > => -> || -= += + / * - ~ <= >= &&""", " ")]
     mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
     "<br>", "("])
-    mark_all!(tm, "import ", :import)
-    mark_all!(tm, "using ", :using)
-    mark_all!(tm, "end ", :end)
-    mark_all!(tm, "\nend ", :end)
-    mark_all!(tm, " end", :end)
-    mark_all!(tm, " struct ;", :struct)
-    mark_all!(tm, "\nstruct ", :struct)
-    mark_all!(tm, "abstract ;", :abstract)
-    mark_all!(tm, "\nabstract ", :abstract)
-    mark_all!(tm, "mutable ", :mutable)
-    mark_all!(tm, " mutable", :mutable)
-    mark_all!(tm, "\nmutable", :mutable)
-    mark_all!(tm, "elseif ", :if)
-    mark_all!(tm, " if ", :if)
-    mark_all!(tm, "if ", :if)
-    mark_all!(tm, "else ", :if)
-    mark_all!(tm, "export ", :import)
-    mark_all!(tm, "try ", :if)
-    mark_all!(tm, "catch ", :if)
-    mark_all!(tm, "\nif ", :if)
-    mark_all!(tm, "for ", :for)
-    mark_all!(tm, "\nfor ", :for)
-    mark_all!(tm, " in ", :in)
-    mark_all!(tm, "\nin ", :in)
-    mark_all!(tm, "begin ", :begin)
-    mark_all!(tm, "begin\n", :begin)
-    mark_all!(tm, "module ", :module)
-
-    #mark_between!(tm, "#=",  :comment, until  =  ["=#"])
-    mark_between!(tm, "'", :char)
-
+    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
+    ";"])
+    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
+    #mark_between!(tm, "#=", "=#", :comment])
 #=    mark_inside!(tm, :string) do tm2
         mark_for!(tm2, "\\", 1, :exit)
     end =#
