@@ -189,11 +189,10 @@ end
 
 function mark_all!(tm::TextModifier, c::Char, label::Symbol)
     [begin
-        pos = v[1]
-        if ~(pos in tm.taken)
-            push!(tm, pos:pos => label)
-        end
-    end for v in findall(character -> character == c, tm.raw)]
+    if ~(v in tm.taken)
+        push!(tm, v:v => label)
+    end
+    end for v in findall(c, tm.raw)]
 end
 
 """
@@ -440,7 +439,7 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "begin", :begin)
     mark_all!(tm, "module", :module)
     # math
-    [mark_all!(tm, Char(dig), :number) for dig in digits(1234567890)]
+    [mark_all!(tm, Char('0' + dig), :number) for dig in digits(1234567890)]
     mark_all!(tm, "true", :number)
     mark_all!(tm, "false", :number)
     [mark_all!(tm, string(op), :op) for op in split(
@@ -529,7 +528,7 @@ function string(tm::TextStyleModifier)
     lastmax::Int64 = length(tm.raw)
     loop_len = length(keys(tm.marks))
     [begin
-        if length(mark) > 1
+        if length(mark) > 0
             mname = tm.marks[mark]
             if minimum(mark) - prev > 0
                 txt = a("modiftxt", text = rep_str(tm.raw[prev:minimum(mark) - 1]))
