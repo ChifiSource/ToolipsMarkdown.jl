@@ -128,11 +128,14 @@ mutable struct TextStyleModifier <: TextModifier
     end
 end
 
-clear!(tm::TextStyleModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
+clear!(tm::TextStyleModifier) = begin
+    tm.marks = Dict{UnitRange{Int64}, Symbol}()
+    tm.taken = Vector{Int64}()
+end
 
 function push!(tm::TextStyleModifier, p::Pair{UnitRange{Int64}, Symbol})
     push!(tm.marks, p)
-    vcat(tm.taken, Vector(p[1]))
+    tm.taken = vcat(tm.taken, Vector(p[1]))
 end
 
 """
@@ -225,19 +228,23 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol)
         else
             mark1 = minimum(v)
             mark2 = maximum(positions[e + 1])
-            atstart = v[1] - 1 < 1
-            atend = maximum(v) == length(tm.raw)
+            atstart = mark1 - 1 < 1
+            atend = mark2 == length(tm.raw)
             if ~(atstart || atend)
                 if ~(tm.raw[mark1 - 1] == s[1] || tm.raw[maximum(mark2) + 1] == s[length(s)])
                     push!(tm, mark1:mark2 => label)
+                end
+            elseif atstart && atend
+                if ~(tm.raw[maximum(mark2)] == s[1])
+                    push!(tm, 1:length(tm.raw) => label)
                 end
             elseif atstart
                 if ~(tm.raw[maximum(mark2) + 1] == s[1])
                     push!(tm, mark1:mark2 => label)
                 end
             elseif atend
-                if tm.raw[mark1 - 1] == s[1]
-                    push!(tm, mark1:mark2 => label)
+                if ~(tm.raw[mark1 - 1] == s[1])
+                    push!(tm, mark1:length(tm.raw) => label)
                 end   
             end  
         end
