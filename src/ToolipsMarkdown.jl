@@ -14,6 +14,7 @@ module ToolipsMarkdown
 using Toolips
 import Toolips: Modifier
 import Toolips: style!, string
+import Base: push!
 using Markdown
 
 """
@@ -115,16 +116,24 @@ This type is provided
 """
 mutable struct TextStyleModifier <: TextModifier
     raw::String
+    taken::Vector{Int64}
     marks::Dict{UnitRange{Int64}, Symbol}
     styles::Dict{Symbol, Vector{Pair{String, String}}}
     function TextStyleModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
         styles = Dict{Symbol, Vector{Pair{String, String}}}()
-        new(raw, marks, styles)
+        raw = replace(raw, "&nbsp;"  => " ",
+        "</br>"  =>  "\n", "</br>" => "\n", "&bsol;" => "\\")
+        new(raw, Vector{Int64}(), marks, styles)
     end
 end
 
 clear!(tm::TextStyleModifier) = tm.marks = Dict{UnitRange{Int64}, Symbol}()
+
+function push!(tm::TextStyleModifier, p::Pair{UnitRange{Int64}, Symbol})
+    push!(tm.marks, p)
+    vcat(tm.taken, Vector(p[1]))
+end
 
 """
 **Toolips Markdown**
@@ -150,13 +159,29 @@ Marks all instances of `s` in `tm.raw` as `label`.
 
 ```
 """
-function mark_all!(tm::TextModifier, s::String, label::Symbol)
+function mark_all!(tm::TextModifier, s::String, label::Symbol)::Nothing
     [begin
-    if ~(length(findall(i -> length(findall(n -> n in i, v)) > 0,
-     collect(keys(tm.marks)))) > 0)
-        push!(tm.marks, v => label)
-    end
+            if v[1] - 1 > 1 && ~(maximum(v) == length(tm.raw))
+                if tm.raw[v[1] - 1] in repeat_offenders && tm.raw[maximum(v) + 1] in repeat_offenders
+                    if ~(any(n -> n in v, tm.taken))
+                        push!(tm, v => label)
+                    end
+                end
+            elseif v[1] - 1 > 1
+                if tm.raw[v[1] - 1] in repeat_offenders
+                    if ~(any(n -> n in v, tm.taken))
+                        push!(tm, v => label)
+                    end
+                end
+            elseif ~(maximum(v) == length(tm.raw))
+                if tm.raw[maximum(v) + 1] in repeat_offenders
+                    if ~(any(n -> n in v, tm.taken))
+                        push!(tm, v => label)
+                    end
+                end
+            end  
      end for v in findall(s, tm.raw)]
+    nothing
 end
 
 """
@@ -170,41 +195,45 @@ count by two.
 
 ```
 """
-function mark_between!(tm::TextModifier, s::String, label::Symbol;
-    exclude::String = "\"")
-    firsts = findall(s, tm.raw)
-    finales = Vector{UnitRange{Int64}}()
-    uneven = length(firsts) % 2 != 0
-    for i in 1:length(firsts)
-        mark::UnitRange{Int64} = firsts[i]
-        if length(tm.raw) > maximum(mark) + length(exclude) && length(tm.raw) > length(exclude) + length(s)
-            if  contains(tm.raw[maximum(mark) + 1:maximum(mark) + length(exclude)], exclude)
-                break
-            end
-        end
-        if minimum(mark) - length(exclude) > 0 && length(tm.raw) > length(exclude) + length(s)
-            if  contains(tm.raw[minimum(mark) - 1:minimum(mark) - length(exclude)], exclude)
-                break
-            end
-        end
-        if uneven && i == length(firsts)
-            pos = minimum(firsts[i]):length(tm.raw)
-            if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
-             collect(keys(tm.marks)))) > 0)
-                push!(finales, pos)
-            end
-            break
-        end
-        if i % 2 == 0
-            continue
-        end
-        pos = minimum(firsts[i]):maximum(firsts[i + 1])
-        if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
-         collect(keys(tm.marks)))) > 0)
-            push!(finales, pos)
+function mark_between!(tm::TextModifier, s::String, label::Symbol)
+    positions::Vector{UnitRange{Int64}} = findall(s, tm.raw)
+    uneven = length(positions) % 2 != 0
+    [begin
+        if ~(e % 2 == 0)
+            if uneven && e == length(positions)
+                if ~(any(n -> n in v[1]:length(tm.raw), tm.taken))
+                    atstart = v[1] - 1 < 1
+                    atend = maximum(v) == length(tm.raw)
+                    if atstart
+                        push!(tm, v[1]:length(tm.raw) => label)
+                    else
+                        if ~(tm.raw[maximum(mark1) + 1] == s[1])
+                            push!(tm, v[1]:length(tm.raw) => label)
+                        end
+                    end  
+                end
+        else
+            mark1 = minimum(v)
+            mark2 = maximum(positions[e + 1])
+            atstart = v[1] - 1 < 1
+            atend = maximum(v) == length(tm.raw)
+            if ~(atstart || atend)
+                if ~(tm.raw[mark1 - 1] == s[1] || tm.raw[maximum(mark2) + 1] == s[length(s)])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atstart
+                if ~(tm.raw[maximum(mark2) + 1] == s[1])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atend
+                if tm.raw[mark1 - 1] == s[1]
+                    push!(tm, mark1:mark2 => label)
+                end   
+            end  
         end
     end
-    [push!(tm.marks, v => label) for v in finales]
+    end for (e, v) in enumerate(positions)]
+    nothing
 end
 
 """
@@ -393,13 +422,15 @@ mark_julia!(tm::TextModifier) = begin
     "<br>", "("])
     mark_all!(tm, "import ", :import)
     mark_all!(tm, "using ", :using)
+    mark_all!(tm, "end ", :end)
+    mark_all!(tm, "\nend ", :end)
     mark_all!(tm, " end", :end)
-    mark_all!(tm, "\nend", :end)
     mark_all!(tm, " struct ;", :struct)
     mark_all!(tm, "\nstruct ", :struct)
     mark_all!(tm, "abstract ;", :abstract)
     mark_all!(tm, "\nabstract ", :abstract)
-    mark_all!(tm, " mutable ", :mutable)
+    mark_all!(tm, "mutable ", :mutable)
+    mark_all!(tm, " mutable", :mutable)
     mark_all!(tm, "\nmutable", :mutable)
     mark_all!(tm, "elseif ", :if)
     mark_all!(tm, " if ", :if)
