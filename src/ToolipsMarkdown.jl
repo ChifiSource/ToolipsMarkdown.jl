@@ -122,7 +122,7 @@ mutable struct TextStyleModifier <: TextModifier
     function TextStyleModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
         styles = Dict{Symbol, Vector{Pair{String, String}}}()
-        raw = replace(raw, "&nbsp;"  => " ",
+        raw = replace(raw, "&nbsp;"  => " ", "<br>" => "\n",
         "</br>"  =>  "\n", "</br>" => "\n", "&bsol;" => "\\")
         new(raw, Vector{Int64}(), marks, styles)
     end
@@ -134,10 +134,18 @@ clear!(tm::TextStyleModifier) = begin
 end
 
 function push!(tm::TextStyleModifier, p::Pair{UnitRange{Int64}, Symbol})
-    push!(tm.marks, p)
-    tm.taken = vcat(tm.taken, Vector(p[1]))
+    if ~(any(n -> n in p[1], tm.taken))
+        push!(tm.marks, p)
+        tm.taken = vcat(tm.taken, Vector(p[1]))
+    end
 end
 
+function push!(tm::TextStyleModifier, p::Pair{Int64, Symbol})
+    if ~(v in tm.taken)
+        push!(tm.marks, p[1]:p[1] => p[2])
+        push!(tm.taken, p[1])
+    end
+end
 """
 **Toolips Markdown**
 ### style!(tm::TextStyleModifier, marks::Symbol, sty::Vector{Pair{String, String}})
@@ -168,21 +176,15 @@ function mark_all!(tm::TextModifier, s::String, label::Symbol)::Nothing
     [begin
             if v[1] - 1 > 1 && ~(maximum(v) == length(tm.raw))
                 if tm.raw[v[1] - 1] in repeat_offenders && tm.raw[maximum(v) + 1] in repeat_offenders
-                    if ~(any(n -> n in v, tm.taken))
-                        push!(tm, v => label)
-                    end
+                    push!(tm, v => label)
                 end
             elseif v[1] - 1 > 1
                 if tm.raw[v[1] - 1] in repeat_offenders
-                    if ~(any(n -> n in v, tm.taken))
-                        push!(tm, v => label)
-                    end
+                    push!(tm, v => label)
                 end
             elseif ~(maximum(v) == length(tm.raw))
                 if tm.raw[maximum(v) + 1] in repeat_offenders
-                    if ~(any(n -> n in v, tm.taken))
-                        push!(tm, v => label)
-                    end
+                    push!(tm, v => label)
                 end
             end  
      end for v in findall(s, tm.raw)]
@@ -192,9 +194,7 @@ end
 
 function mark_all!(tm::TextModifier, c::Char, label::Symbol)
     [begin
-    if ~(v in tm.taken)
         push!(tm, v:v => label)
-    end
     end for v in findall(c, tm.raw)]
 end
 
@@ -235,9 +235,7 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol)
                     push!(tm, mark1:mark2 => label)
                 end
             elseif atstart && atend
-                if ~(tm.raw[maximum(mark2)] == s[1])
-                    push!(tm, 1:length(tm.raw) => label)
-                end
+                push!(tm, 1:length(tm.raw) => label)
             elseif atstart
                 if ~(tm.raw[maximum(mark2) + 1] == s[1])
                     push!(tm, mark1:mark2 => label)
@@ -252,6 +250,50 @@ function mark_between!(tm::TextModifier, s::String, label::Symbol)
     end for (e, v) in enumerate(positions)]
     nothing
 end
+
+function mark_between!(tm::TextModifier, s::String, s2::String, label::Symbol)
+    openpositions::Vector{UnitRange{Int64}} = findall(s, tm.raw)
+    closepositions::Vector{UnitRange{Int64}} = findall(s2, tm.raw)
+    uneven = length(openpositions) != length(closepositions)
+    [begin
+        if uneven && e > length(closepositions)
+            if ~(any(n -> n in v[1]:length(tm.raw), tm.taken))
+                atstart = v[1] - 1 < 1
+                if atstart
+                    push!(tm, v[1]:length(tm.raw) => label)
+                else
+                    if ~(tm.raw[minimum(v[1]) - 1] == s[1])
+                        push!(tm, v[1]:length(tm.raw) => label)
+                    end
+                end  
+            end
+        else
+            mark1 = minimum(v)
+            mark2 = maximum(closepositions[e])
+            atstart = mark1 - 1 < 1
+            atend = mark2 == length(tm.raw)
+            if ~(atstart || atend)
+                if ~(tm.raw[mark1 - 1] == s[1] || tm.raw[maximum(mark2) + 1] == s[length(s)])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atstart && atend
+                if ~(tm.raw[maximum(mark2)] == s[1])
+                    push!(tm, 1:length(tm.raw) => label)
+                end
+            elseif atstart
+                if ~(tm.raw[maximum(mark2) + 1] == s[1])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atend
+                if ~(tm.raw[mark1 - 1] == s[1])
+                    push!(tm, mark1:length(tm.raw) => label)
+                end   
+            end  
+        end
+    end for (e, v) in enumerate(openpositions)]
+    nothing
+end
+
 
 """
 **Toolips Markdown**
