@@ -122,8 +122,6 @@ mutable struct TextStyleModifier <: TextModifier
     function TextStyleModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
         styles = Dict{Symbol, Vector{Pair{String, String}}}()
-        raw = replace(raw, "&nbsp;"  => " ", "<br>" => "\n",
-        "</br>"  =>  "\n", "</br>" => "\n", "&bsol;" => "\\")
         new(raw, Vector{Int64}(), marks, styles)
     end
 end
@@ -580,11 +578,11 @@ function string(tm::TextStyleModifier)
         if length(mark) > 0
             mname = tm.marks[mark]
             if minimum(mark) - prev > 0
-                txt = a("modiftxt", text = rep_str(tm.raw[prev:minimum(mark) - 1]))
+                txt = span("modiftxt", text = rep_str(tm.raw[prev:minimum(mark) - 1]))
                 style!(txt, tm.styles[:default] ...)
                 push!(finales, txt)
             end
-            txt = a("modiftxt", text = tm.raw[mark])
+            txt = span("modiftxt", text = rep_str(tm.raw[mark]))
             if mname in keys(tm.styles)
                 style!(txt, tm.styles[mname] ...)   
             else
@@ -598,7 +596,7 @@ function string(tm::TextStyleModifier)
         end
     end for (e, mark) in enumerate(keys(sortedmarks))]
     if lastmax != length(tm.raw)
-        txt = a("modiftxt", text = rep_str(tm.raw[lastmax + 1:length(tm.raw)]))
+        txt = span("modiftxt", text = rep_str(tm.raw[lastmax + 1:length(tm.raw)]))
         style!(txt, tm.styles[:default] ...)
         push!(finales, txt)
     end
@@ -608,7 +606,7 @@ function string(tm::TextStyleModifier)
 end
 
 rep_str(s::String) = replace(s, " "  => "&nbsp;",
-"\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;")
+"\n"  =>  "<br>", "\\" => "&bsol;")
 
 export tmd, @tmd_str
 end # module
