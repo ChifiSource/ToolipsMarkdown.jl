@@ -6,7 +6,7 @@ by team
 This software is MIT-licensed.
 ### Toolips Markdown
 A simple markdown to Toolips Component parser. Wraps markdown components into
-a Toolips.divier
+a Toolips.div
 ##### Module Composition
 - [**ToolipsMarkdown**](https://github.com/ChifiSource/ToolipsMarkdown.jl)
 """
@@ -14,6 +14,7 @@ module ToolipsMarkdown
 using Toolips
 import Toolips: Modifier
 import Toolips: style!, string
+import Base: push!
 using Markdown
 
 """
@@ -115,15 +116,34 @@ This type is provided
 """
 mutable struct TextStyleModifier <: TextModifier
     raw::String
+    taken::Vector{Int64}
     marks::Dict{UnitRange{Int64}, Symbol}
     styles::Dict{Symbol, Vector{Pair{String, String}}}
     function TextStyleModifier(raw::String)
         marks = Dict{Symbol, UnitRange{Int64}}()
         styles = Dict{Symbol, Vector{Pair{String, String}}}()
-        new(raw, marks, styles)
+        new(raw, Vector{Int64}(), marks, styles)
     end
 end
 
+clear!(tm::TextStyleModifier) = begin
+    tm.marks = Dict{UnitRange{Int64}, Symbol}()
+    tm.taken = Vector{Int64}()
+end
+
+function push!(tm::TextStyleModifier, p::Pair{UnitRange{Int64}, Symbol})
+    if ~(any(n -> n in p[1], tm.taken))
+        push!(tm.marks, p)
+        tm.taken = vcat(tm.taken, Vector(p[1]))
+    end
+end
+
+function push!(tm::TextStyleModifier, p::Pair{Int64, Symbol})
+    if ~(v in tm.taken)
+        push!(tm.marks, p[1]:p[1] => p[2])
+        push!(tm.taken, p[1])
+    end
+end
 """
 **Toolips Markdown**
 ### style!(tm::TextStyleModifier, marks::Symbol, sty::Vector{Pair{String, String}})
@@ -138,6 +158,8 @@ function style!(tm::TextStyleModifier, marks::Symbol, sty::Vector{Pair{String, S
     push!(tm.styles, marks => sty)
 end
 
+repeat_offenders = ['\n', ' ', ',', '(', ')', ';', '\"']
+
 """
 **Toolips Markdown**
 ### mark_all!(tm::TextModifier, s::String, label::Symbol)
@@ -148,13 +170,30 @@ Marks all instances of `s` in `tm.raw` as `label`.
 
 ```
 """
-function mark_all!(tm::TextModifier, s::String, label::Symbol)
+function mark_all!(tm::TextModifier, s::String, label::Symbol)::Nothing
     [begin
-    if ~(length(findall(i -> length(findall(n -> n in i, v)) > 0,
-     collect(keys(tm.marks)))) > 0)
-        push!(tm.marks, v => label)
-    end
+            if v[1] - 1 > 1 && ~(maximum(v) == length(tm.raw))
+                if tm.raw[v[1] - 1] in repeat_offenders && tm.raw[maximum(v) + 1] in repeat_offenders
+                    push!(tm, v => label)
+                end
+            elseif v[1] - 1 > 1
+                if tm.raw[v[1] - 1] in repeat_offenders
+                    push!(tm, v => label)
+                end
+            elseif ~(maximum(v) == length(tm.raw))
+                if tm.raw[maximum(v) + 1] in repeat_offenders
+                    push!(tm, v => label)
+                end
+            end  
      end for v in findall(s, tm.raw)]
+    nothing
+end
+
+
+function mark_all!(tm::TextModifier, c::Char, label::Symbol)
+    [begin
+        push!(tm, v:v => label)
+    end for v in findall(c, tm.raw)]
 end
 
 """
@@ -168,42 +207,91 @@ count by two.
 
 ```
 """
-function mark_between!(tm::TextModifier, s::String, label::Symbol;
-    exclude::String = "\"")
-    firsts = findall(s, tm.raw)
-    finales = Vector{UnitRange{Int64}}()
-    uneven = length(firsts) % 2 != 0
-    for i in 1:length(firsts)
-        mark::UnitRange{Int64} = firsts[i]
-        if length(tm.raw) > maximum(mark) + length(exclude) && length(tm.raw) > length(exclude) + length(s)
-            if  contains(tm.raw[maximum(mark) + 1:maximum(mark) + length(exclude)], exclude)
-                break
-            end
-        end
-        if minimum(mark) - length(exclude) > 0 && length(tm.raw) > length(exclude) + length(s)
-            if  contains(tm.raw[minimum(mark) - 1:minimum(mark) - length(exclude)], exclude)
-                break
-            end
-        end
-        if uneven && i == length(firsts)
-            pos = minimum(firsts[i]):length(tm.raw)
-            if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
-             collect(keys(tm.marks)))) > 0)
-                push!(finales, pos)
-            end
-            break
-        end
-        if i % 2 == 0
-            continue
-        end
-        pos = minimum(firsts[i]):maximum(firsts[i + 1])
-        if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
-         collect(keys(tm.marks)))) > 0)
-            push!(finales, pos)
+function mark_between!(tm::TextModifier, s::String, label::Symbol)
+    positions::Vector{UnitRange{Int64}} = findall(s, tm.raw)
+    uneven = length(positions) % 2 != 0
+    [begin
+        if ~(e % 2 == 0)
+            if uneven && e == length(positions)
+                if ~(any(n -> n in v[1]:length(tm.raw), tm.taken))
+                    atstart = v[1] - 1 < 1
+                    if atstart
+                        push!(tm, v[1]:length(tm.raw) => label)
+                    else
+                        if ~(tm.raw[minimum(v[1]) - 1] == s[1])
+                            push!(tm, v[1]:length(tm.raw) => label)
+                        end
+                    end  
+                end
+        else
+            mark1 = minimum(v)
+            mark2 = maximum(positions[e + 1])
+            atstart = mark1 - 1 < 1
+            atend = mark2 == length(tm.raw)
+            if ~(atstart || atend)
+                if ~(tm.raw[mark1 - 1] == s[1] || tm.raw[maximum(mark2) + 1] == s[length(s)])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atstart && atend
+                push!(tm, 1:length(tm.raw) => label)
+            elseif atstart
+                if ~(tm.raw[maximum(mark2) + 1] == s[1])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atend
+                if ~(tm.raw[mark1 - 1] == s[1])
+                    push!(tm, mark1:length(tm.raw) => label)
+                end   
+            end  
         end
     end
-    [push!(tm.marks, v => label) for v in finales]
+    end for (e, v) in enumerate(positions)]
+    nothing
 end
+
+function mark_between!(tm::TextModifier, s::String, s2::String, label::Symbol)
+    openpositions::Vector{UnitRange{Int64}} = findall(s, tm.raw)
+    closepositions::Vector{UnitRange{Int64}} = findall(s2, tm.raw)
+    uneven = length(openpositions) != length(closepositions)
+    [begin
+        if uneven && e > length(closepositions)
+            if ~(any(n -> n in v[1]:length(tm.raw), tm.taken))
+                atstart = v[1] - 1 < 1
+                if atstart
+                    push!(tm, v[1]:length(tm.raw) => label)
+                else
+                    if ~(tm.raw[minimum(v[1]) - 1] == s[1])
+                        push!(tm, v[1]:length(tm.raw) => label)
+                    end
+                end  
+            end
+        else
+            mark1 = minimum(v)
+            mark2 = maximum(closepositions[e])
+            atstart = mark1 - 1 < 1
+            atend = mark2 == length(tm.raw)
+            if ~(atstart || atend)
+                if ~(tm.raw[mark1 - 1] == s[1] || tm.raw[maximum(mark2) + 1] == s[length(s)])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atstart && atend
+                if ~(tm.raw[maximum(mark2)] == s[1])
+                    push!(tm, 1:length(tm.raw) => label)
+                end
+            elseif atstart
+                if ~(tm.raw[maximum(mark2) + 1] == s[1])
+                    push!(tm, mark1:mark2 => label)
+                end
+            elseif atend
+                if ~(tm.raw[mark1 - 1] == s[1])
+                    push!(tm, mark1:length(tm.raw) => label)
+                end   
+            end  
+        end
+    end for (e, v) in enumerate(openpositions)]
+    nothing
+end
+
 
 """
 **Toolips Markdown**
@@ -283,7 +371,7 @@ function mark_after!(tm::TextModifier, s::String, label::Symbol;
                     end for d in until]
             ending = minimum(lens)
         end
-        pos = minimum(labelrange) + 1 - includedims_l:ending - includedims_r
+        pos = minimum(labelrange) - includedims_l:ending - includedims_r
         if ~(length(findall(i -> length(findall(n -> n in i, pos)) > 0,
          collect(keys(tm.marks)))) > 0)
             push!(tm.marks,
@@ -376,48 +464,39 @@ Marks julia syntax.
 ```
 """
 mark_julia!(tm::TextModifier) = begin
-    mark_between!(tm, "\"\"\"", :multistring, exclude = "\"\"\"")
+    # delim
+    mark_between!(tm, "\"\"\"", :multistring)
     mark_between!(tm, "\"", :string)
+    mark_between!(tm, "'", :char)
+    # keywords
     mark_all!(tm, "function", :func)
-    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
-    ";"])
-    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
-    [mark_all!(tm, string(dig), :number) for dig in digits(1234567890)]
+    mark_all!(tm, "import", :import)
+    mark_all!(tm, "using", :using)
+    mark_all!(tm, "end", :end)
+    mark_all!(tm, "struct", :struct)
+    mark_all!(tm, "abstract", :abstract)
+    mark_all!(tm, "mutable", :mutable)
+    mark_all!(tm, "if", :if)
+    mark_all!(tm, "else", :if)
+    mark_all!(tm, "elseif", :if)
+    mark_all!(tm, "export ", :using)
+    mark_all!(tm, "try ", :if)
+    mark_all!(tm, "catch ", :if)
+    mark_all!(tm, "for", :for)
+    mark_all!(tm, "begin", :begin)
+    mark_all!(tm, "module", :module)
+    # math
+    [mark_all!(tm, Char('0' + dig), :number) for dig in digits(1234567890)]
     mark_all!(tm, "true", :number)
     mark_all!(tm, "false", :number)
     [mark_all!(tm, string(op), :op) for op in split(
     """<: = == < > => -> || -= += + / * - ~ <= >= &&""", " ")]
     mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
     "<br>", "("])
-    mark_all!(tm, "import ", :import)
-    mark_all!(tm, "using ", :using)
-    mark_all!(tm, " end", :end)
-    mark_all!(tm, "\nend", :end)
-    mark_all!(tm, " struct ;", :struct)
-    mark_all!(tm, "\nstruct ", :struct)
-    mark_all!(tm, "abstract ;", :abstract)
-    mark_all!(tm, "\nabstract ", :abstract)
-    mark_all!(tm, " mutable ", :mutable)
-    mark_all!(tm, "\nmutable", :mutable)
-    mark_all!(tm, "elseif ", :if)
-    mark_all!(tm, " if ", :if)
-    mark_all!(tm, "if ", :if)
-    mark_all!(tm, "else ", :if)
-    mark_all!(tm, "export ", :import)
-    mark_all!(tm, "try ", :if)
-    mark_all!(tm, "catch ", :if)
-    mark_all!(tm, "\nif ", :if)
-    mark_all!(tm, "for ", :for)
-    mark_all!(tm, "\nfor ", :for)
-    mark_all!(tm, " in ", :in)
-    mark_all!(tm, "\nin ", :in)
-    mark_all!(tm, "begin ", :begin)
-    mark_all!(tm, "begin\n", :begin)
-    mark_all!(tm, "module ", :module)
-
-    #mark_between!(tm, "#=",  :comment, until  =  ["=#"])
-    mark_between!(tm, "'", :char)
-
+    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
+    ";"])
+    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
+    #mark_between!(tm, "#=", "=#", :comment])
 #=    mark_inside!(tm, :string) do tm2
         mark_for!(tm2, "\\", 1, :exit)
     end =#
@@ -474,41 +553,6 @@ end
 
 """
 **Toolips Markdown**
-### split_by_range(tm::TextModifier)
-------------------
-Filters marks and then collects them into a `Vector{Any}` of Strings and
-Pairs of symbols and styles.
-#### example
-```
-
-```
-"""
-function split_by_range(tm::TextModifier)
-    prev::Int64 = 1
-    finals = Vector{Any}()
-    filtmarks = [begin
-        if length(nmark) <= 0
-            1:1
-        elseif isnothing(nmark)
-            1:1
-        else
-            nmark
-        end
-    end for nmark in collect(keys(tm.marks))]
-        filter!(i -> i != 1:1,  filtmarks)
-    [begin
-        push!(finals, tm.raw[prev:minimum(mark) - 1])
-        push!(finals, tm.marks[mark] => tm.raw[mark])
-        prev = maximum(mark) + 1
-    end for mark in sort(filtmarks)]
-        if prev < length(tm.raw)
-            push!(finals, tm.raw[prev:length(tm.raw)])
-        end
-    finals
-end
-
-"""
-**Toolips Markdown**
 ### string(tm::TextModifier) -> ::String
 ------------------
 Styles marks together into `String`.
@@ -517,26 +561,52 @@ Styles marks together into `String`.
 
 ```
 """
-string(tm::TextModifier) = begin
-    out::String = join([begin
-    spoof = Toolips.SpoofConnection()
-    txt = nothing
-    if typeof(text) == Pair{Symbol, String}
-        txt = a("modiftxt", text = replace(text[2], " "  => "&nbsp;",
-        "\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;"))
-        if text[1] in keys(tm.styles)
-            style!(txt, tm.styles[text[1]] ...)
-        end
-    else
-        txt = a("modiftxt", text = replace(text, " "  => "&nbsp;",
-        "\n"  =>  "<br>", "</br>" => "<br>", "\\" => "&bsol;"))
+function string(tm::TextStyleModifier)
+    if length(tm.marks) == 0
+        txt = a("modiftxt", text = rep_str(tm.raw))
         style!(txt, tm.styles[:default] ...)
+        sc = Toolips.SpoofConnection()
+        write!(sc, txt)
+        return(sc.http.text)::String
     end
-    write!(spoof, txt)
-    spoof.http.text
-    end for text in split_by_range(tm)])
-    out::String
+    prev = 1
+    finales = Vector{Servable}()
+    sortedmarks = sort(tm.marks)
+    lastmax::Int64 = length(tm.raw)
+    loop_len = length(keys(tm.marks))
+    [begin
+        if length(mark) > 0
+            mname = tm.marks[mark]
+            if minimum(mark) - prev > 0
+                txt = span("modiftxt", text = rep_str(tm.raw[prev:minimum(mark) - 1]))
+                style!(txt, tm.styles[:default] ...)
+                push!(finales, txt)
+            end
+            txt = span("modiftxt", text = rep_str(tm.raw[mark]))
+            if mname in keys(tm.styles)
+                style!(txt, tm.styles[mname] ...)   
+            else
+                style!(txt, tm.styles[:default] ...)
+            end
+            push!(finales, txt)
+            prev = maximum(mark) + 1
+        end
+        if e == loop_len
+            lastmax = maximum(mark)
+        end
+    end for (e, mark) in enumerate(keys(sortedmarks))]
+    if lastmax != length(tm.raw)
+        txt = span("modiftxt", text = rep_str(tm.raw[lastmax + 1:length(tm.raw)]))
+        style!(txt, tm.styles[:default] ...)
+        push!(finales, txt)
+    end
+    sc = Toolips.SpoofConnection()
+    write!(sc, finales)
+    sc.http.text::String
 end
+
+rep_str(s::String) = replace(s, " "  => "&nbsp;",
+"\n"  =>  "<br>", "\\" => "&bsol;")
 
 export tmd, @tmd_str
 end # module
