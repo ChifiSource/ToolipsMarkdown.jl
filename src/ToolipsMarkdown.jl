@@ -378,12 +378,7 @@ function mark_for!(tm::TextModifier, ch::String, f::Int64, label::Symbol)
 end
 
 
-function mark_line_after!(tm::TextModifier, ch::String, label::Symbol)
-    chars = findall(ch, tm.raw)
-    for char in chars
-        maximum(char:findnext("\n", char[2], tm.raw))
-    end
-end
+mark_line_after!(tm::TextModifier, ch::String, label::Symbol) = mark_between!(tm, ch, "\n", label)
 
 function mark_line_startswith!(tm::TextModifier, ch::String, label::Symbol)
     marks = findall("\n$ch", tm.raw)
@@ -414,11 +409,13 @@ Marks julia syntax.
 """
 mark_julia!(tm::TextModifier) = begin
     # delim
+    mark_line_after!(tm, "#", :comment)
     mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
     "<br>", "("])
     mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
     ";"])
-    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
+    mark_after!(tm, "@", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
+    ";"])
  #   mark_between!(tm, "\"\"\"", :multistring)
     mark_between!(tm, "\"", :string)
     mark_between!(tm, "'", :char)
@@ -433,10 +430,14 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "if", :if)
     mark_all!(tm, "else", :if)
     mark_all!(tm, "elseif", :if)
+    mark_all!(tm, "in", :in)
     mark_all!(tm, "export ", :using)
     mark_all!(tm, "try ", :if)
     mark_all!(tm, "catch ", :if)
+    mark_all!(tm, "elseif", :if)
     mark_all!(tm, "for", :for)
+    mark_all!(tm, "while", :for)
+    mark_all!(tm, "quote", :for)
     mark_all!(tm, "begin", :begin)
     mark_all!(tm, "module", :module)
     # math
@@ -445,7 +446,7 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "false", :number)
     [mark_all!(tm, string(op), :op) for op in split(
     """<: = == < > => -> || -= += + / * - ~ <= >= &&""", " ")]
-    #mark_between!(tm, "#=", "=#", :comment])
+    mark_between!(tm, "#=", "=#", :comment)
 #=    mark_inside!(tm, :string) do tm2
         mark_for!(tm2, "\\", 1, :exit)
     end =#
@@ -483,6 +484,7 @@ highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :exit, ["color" => "#006C67"])
     style!(tm, :op, ["color" => "#0C023E"])
     style!(tm, :multistring, ["color" => "#1B4636"])
+    style!(tm, :comment, ["color" => "#808080"])
 end
 
 """
