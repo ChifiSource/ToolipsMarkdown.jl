@@ -464,6 +464,11 @@ Marks julia syntax.
 ```
 """
 mark_julia!(tm::TextModifier) = begin
+    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
+    "<br>", "("])
+    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
+    ";"])
+    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
     # delim
     mark_between!(tm, "\"\"\"", :multistring)
     mark_between!(tm, "\"", :string)
@@ -491,11 +496,6 @@ mark_julia!(tm::TextModifier) = begin
     mark_all!(tm, "false", :number)
     [mark_all!(tm, string(op), :op) for op in split(
     """<: = == < > => -> || -= += + / * - ~ <= >= &&""", " ")]
-    mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
-    "<br>", "("])
-    mark_after!(tm, "::", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
-    ";"])
-    mark_after!(tm, "#",  :comment, until  =  ["\n", "<br>"])
     #mark_between!(tm, "#=", "=#", :comment])
 #=    mark_inside!(tm, :string) do tm2
         mark_for!(tm2, "\\", 1, :exit)
@@ -514,25 +514,25 @@ Marks default style for julia code.
 """
 highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :func, ["color" => "#fc038c"])
-    style!(tm, :funcn, ["color" => "blue"])
-    style!(tm, :using, ["color" => "teal"])
+    style!(tm, :funcn, ["color" => "#2F387B"])
+    style!(tm, :using, ["color" => "#006C67"])
     style!(tm, :import, ["color" => "#fc038c"])
     style!(tm, :end, ["color" => "#b81870"])
-    style!(tm, :mutable, ["color" => "teal"])
+    style!(tm, :mutable, ["color" => "#006C67"])
     style!(tm, :struct, ["color" => "#fc038c"])
     style!(tm, :begin, ["color" => "#fc038c"])
-    style!(tm, :module, ["color" => "red"])
-    style!(tm, :string, ["color" => "green"])
+    style!(tm, :module, ["color" => "#b81870"])
+    style!(tm, :string, ["color" => "#007958"])
     style!(tm, :if, ["color" => "#fc038c"])
     style!(tm, :for, ["color" => "#fc038c"])
-    style!(tm, :in, ["color" => "teal"])
-    style!(tm, :abstract, ["color" => "teal"])
+    style!(tm, :in, ["color" => "#006C67"])
+    style!(tm, :abstract, ["color" => "#006C67"])
     style!(tm, :number, ["color" => "#8b0000"])
     style!(tm, :char, ["color" => "#8b0000"])
     style!(tm, :type, ["color" => "#D67229"])
-    style!(tm, :exit, ["color" => "teal"])
-    style!(tm, :op, ["color" => "darkblue"])
-    style!(tm, :multistring, ["color" => "darkgreen"])
+    style!(tm, :exit, ["color" => "#006C67"])
+    style!(tm, :op, ["color" => "#0C023E"])
+    style!(tm, :multistring, ["color" => "#1B4636"])
     style!(tm, :default, ["color" => "#3D3D3D"])
 end
 
@@ -571,7 +571,7 @@ function string(tm::TextStyleModifier)
     end
     prev = 1
     finales = Vector{Servable}()
-    sortedmarks = sort(tm.marks)
+    sortedmarks = tm.marks
     lastmax::Int64 = length(tm.raw)
     loop_len = length(keys(tm.marks))
     [begin
