@@ -342,16 +342,7 @@ marks before a given string until hitting any value in `until`.
 ```
 """
 function mark_inside!(f::Function, tm::TextModifier, label::Symbol)
-    labelmarks = findall(v -> v == label, tm.marks)
-    [begin
-        n = minimum(r)
-        ntm = TextStyleModifier(tm.raw[r])
-        f(ntm)
-        [begin
-            push!(tm.marks,
-            minimum(rang[1]) + n:maximum(rang[1]) + n => rang[2])
-        end for rang in ntm.marks]
-    end for r in labelmarks]
+
 end
 
 """
@@ -408,6 +399,7 @@ Marks julia syntax.
 ```
 """
 mark_julia!(tm::TextModifier) = begin
+    tm.raw = replace(tm.raw, "<br>" => "\n", "</br>" => "\n", "&nbsp;" => " ")
     # delim
     mark_line_after!(tm, "#", :comment)
     mark_before!(tm, "(", :funcn, until = [" ", "\n", ",", ".", "\"", "&nbsp;",
@@ -416,7 +408,6 @@ mark_julia!(tm::TextModifier) = begin
     ";"])
     mark_after!(tm, "@", :type, until = [" ", ",", ")", "\n", "<br>", "&nbsp;", "&nbsp;",
     ";"])
- #   mark_between!(tm, "\"\"\"", :multistring)
     mark_between!(tm, "\"", :string)
     mark_between!(tm, "'", :char)
     # keywords
@@ -483,7 +474,6 @@ highlight_julia!(tm::TextStyleModifier) = begin
     style!(tm, :type, ["color" => "#D67229"])
     style!(tm, :exit, ["color" => "#006C67"])
     style!(tm, :op, ["color" => "#0C023E"])
-    style!(tm, :multistring, ["color" => "#1B4636"])
     style!(tm, :comment, ["color" => "#808080"])
 end
 
