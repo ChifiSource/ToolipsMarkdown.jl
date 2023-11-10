@@ -181,10 +181,6 @@ function mark_all!(tm::TextModifier, s::String, label::Symbol)::Nothing
         elseif maximum(v) == length(tm.raw)
             if tm.raw[v[1] - 1] in repeat_offenders
                 push!(tm, v => label)
-            else
-                if v[1] - 1 > 4
-                    println(tm.raw[v[1] - 5:maximum(v)])
-                end
             end
         elseif minimum(v) == 1
             if tm.raw[maximum(v) + 1] in repeat_offenders
