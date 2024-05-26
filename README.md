@@ -1,6 +1,11 @@
 <div align="center">
 <img src = "https://github.com/ChifiSource/image_dump/blob/main/toolips/toolipsmarkdown.png"></img>
 
+## dead repo
+`ToolipsMarkdown` is now a part of `ToolipsServables` in `Toolips` `0.3`. [ToolipsServables](https://github.com/ChifiSource/ToolipsServables.jl).
+--
+- ( **This project can still be used with `Toolips` `0.2`.** )
+- 
 Parse markdown strings into Toolips Components.
 
 </div>
